@@ -1,0 +1,165 @@
+---
+title: "website_crawler"
+description: "Crawl a website and upload its content to an OpenAI vector store with Redis caching"
+---
+
+## Method Signature
+
+```python
+def website_crawler(self, url, my_bar):
+```
+
+## Overview
+
+The `website_crawler` method is the main entry point for crawling websites. It retrieves all content from a website, checks the Redis cache for existing uploads, and uploads new content to the configured OpenAI vector store.
+
+## Parameters
+
+<ParamField path="url" type="str" required>
+  The base URL of the website to crawl. Must be a valid HTTP/HTTPS URL.
+</ParamField>
+
+<ParamField path="my_bar" type="streamlit.delta_generator.DeltaGenerator" required>
+  Streamlit progress bar component for displaying crawl progress. Should support `.progress(value, text)` method.
+</ParamField>
+
+## Return Value
+
+<ResponseField type="None">
+  This method does not return a value. It performs side effects:
+  - Updates Redis cache with URL-to-file-ID mappings
+  - Creates files in the `data/` directory
+  - Uploads content to OpenAI vector stores
+  - Updates the progress bar
+</ResponseField>
+
+## Behavior
+
+### Cache Check
+
+The method first checks if the URL has been previously crawled:
+
+```python
+if file_id := self.r.get(url):
+    self.r.zadd("vs_files", {file_id: int(time.time())})
+    return
+```
+
+If found in cache, it updates the timestamp in the `vs_files` sorted set and returns early without re-crawling.
+
+### Crawling Process
+
+1. **Fetch Content**: Calls `get_website_data()` to crawl the entire website
+2. **Save Locally**: Creates a text file in `data/` directory named after the domain
+3. **Upload to OpenAI**: Creates a file object with purpose "assistants"
+4. **Cache Mapping**: Stores bidirectional URL ↔ file ID mapping in Redis
+5. **Vector Store**: Adds the file to the configured vector store
+6. **Track File**: Adds vector store file to `vs_files` sorted set with timestamp
+
+## Implementation Details
+
+```python
+def website_crawler(self, url, my_bar):
+    base_url = url
+    data = self.get_website_data(base_url, my_bar)
+
+    if file_id := self.r.get(url):
+        self.r.zadd("vs_files", {file_id: int(time.time())})
+        return
+
+    # Uploading file into vector database
+    file_name = urlparse(base_url).netloc + ".txt"
+    os.makedirs('data', exist_ok=True)
+    with open('data/' + file_name, "w") as text_file:
+        text_file.write(data)
+
+    file_ = self.client.files.create(
+        file=open('data/' + file_name, "rb"), purpose="assistants"
+    )
+    # map url to file id and file id to url
+    self.r.set(url, file_.id)
+    self.r.set(file_.id, url)
+
+    vector_store_file = self.client.beta.vector_stores.files.create(
+        vector_store_id=self.vector_storage_id, file_id=file_.id
+    )
+
+    self.r.zadd(
+        "vs_files", {vector_store_file.id: int(vector_store_file.created_at)}
+    )
+```
+
+## Redis Data Structure
+
+### Key-Value Mappings
+
+- `url` → `file_id`: Maps website URLs to OpenAI file IDs
+- `file_id` → `url`: Reverse mapping for lookups
+
+### Sorted Set
+
+- **Name**: `vs_files`
+- **Members**: Vector store file IDs
+- **Scores**: Unix timestamps (creation or access time)
+- **Purpose**: Track files for cleanup and manage vector store lifecycle
+
+## File Storage
+
+Crawled content is saved locally before upload:
+
+- **Directory**: `data/`
+- **Filename**: `{domain}.txt` (e.g., `example.com.txt`)
+- **Format**: Prettified HTML using BeautifulSoup
+- **Purpose**: Intermediate storage for OpenAI file upload
+
+## Example Usage
+
+```python
+import streamlit as st
+from openai import OpenAI
+from crawl_util import CrawlUtil
+
+# Initialize components
+client = OpenAI(api_key="sk-...")
+vector_store_id = "vs_abc123"
+progress_bar = st.progress(0)
+
+# Create crawler instance
+crawler = CrawlUtil(
+    client=client,
+    vector_storage_id=vector_store_id,
+    progress_text="Analyzing company website..."
+)
+
+# Crawl a company website
+try:
+    crawler.website_crawler("https://example.com", progress_bar)
+    st.success("Website crawled successfully!")
+except Exception as e:
+    st.error(f"Crawl failed: {e}")
+```
+
+## Progress Tracking
+
+The progress bar is updated during the crawling process:
+
+- Progress starts at 0 when crawling begins
+- Increments proportionally as each page is crawled
+- Reaches 100% when all pages in the base domain are processed
+- Progress is calculated based on links found on the homepage
+
+## Error Handling
+
+The method relies on underlying methods for error handling:
+
+- `fetch_html()` handles HTTP request failures
+- Returns `None` for failed requests, which are skipped
+- File system operations may raise `IOError` or `OSError`
+- OpenAI API calls may raise `openai.APIError` exceptions
+
+## Performance Considerations
+
+- **Caching**: Prevents redundant crawls and API calls
+- **Breadth-first search**: Ensures systematic coverage
+- **Same-domain only**: Limits scope to relevant content
+- **Sequential crawling**: Processes one page at a time to avoid overwhelming servers

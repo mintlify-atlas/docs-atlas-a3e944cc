@@ -1,0 +1,398 @@
+---
+title: Installation
+description: Complete setup guide for XRP Transaction Risk AI dependencies and configuration
+---
+
+# Installation
+
+This guide covers the complete installation process for XRP Transaction Risk AI, including Python dependencies, Streamlit setup, Redis configuration, and environment setup.
+
+## System requirements
+
+- Python 3.8 or higher
+- pip package manager
+- Redis server 5.0 or higher
+- 2GB RAM minimum
+- Internet connection for API access
+
+## Installation steps
+
+<Steps>
+  <Step title="Clone or download the source code">
+    Get the project files into your working directory:
+    
+    ```bash
+    cd ~/workspace/source
+    ```
+    
+    Ensure you have the following files:
+    - `ripple_challange.py` - Main application
+    - `crawl_util.py` - Web crawling utilities
+    - `LogoLeaf.png` - Application icon
+  </Step>
+  
+  <Step title="Install Python dependencies">
+    The application requires several Python packages. Install them using pip:
+    
+    ```bash
+    pip install streamlit openai xrpl-py requests beautifulsoup4 redis
+    ```
+    
+    ### Core dependencies
+    
+    **Streamlit**
+    Web application framework for the interactive UI
+    
+    ```bash
+    pip install streamlit
+    ```
+    
+    **OpenAI**
+    For AI assistants and vector storage integration
+    
+    ```bash
+    pip install openai
+    ```
+    
+    **xrpl-py**
+    Official Python library for XRP Ledger
+    
+    ```bash
+    pip install xrpl-py
+    ```
+    
+    **requests**
+    HTTP library for XRPScan API calls
+    
+    ```bash
+    pip install requests
+    ```
+    
+    **BeautifulSoup4**
+    HTML parsing for web crawling
+    
+    ```bash
+    pip install beautifulsoup4
+    ```
+    
+    **redis**
+    Redis client for caching crawled data
+    
+    ```bash
+    pip install redis
+    ```
+  </Step>
+  
+  <Step title="Install and configure Redis">
+    Redis is used to cache crawled website data, preventing duplicate crawls.
+    
+    **On macOS (using Homebrew):**
+    
+    ```bash
+    brew install redis
+    brew services start redis
+    ```
+    
+    **On Ubuntu/Debian:**
+    
+    ```bash
+    sudo apt-get update
+    sudo apt-get install redis-server
+    sudo systemctl start redis-server
+    sudo systemctl enable redis-server
+    ```
+    
+    **On Windows:**
+    
+    Download and install Redis from the official releases or use WSL.
+    
+    ### Verify Redis installation
+    
+    ```bash
+    redis-cli ping
+    ```
+    
+    Expected output: `PONG`
+    
+    <Note>
+    The application expects Redis on `localhost:6379` as configured in `crawl_util.py:11`
+    </Note>
+  </Step>
+  
+  <Step title="Set up OpenAI API and assistants">
+    ### Get your OpenAI API key
+    
+    1. Sign up at [platform.openai.com](https://platform.openai.com)
+    2. Navigate to API keys section
+    3. Create a new API key
+    4. Save it securely
+    
+    ### Create a vector storage
+    
+    ```python
+    from openai import OpenAI
+    
+    client = OpenAI(api_key="your-api-key")
+    vector_store = client.beta.vector_stores.create(
+        name="XRP Risk AI Knowledge Base"
+    )
+    print(vector_store.id)  # Save this ID
+    ```
+    
+    ### Create three assistants
+    
+    **1. Summary Assistant**
+    
+    ```python
+    summary_assistant = client.beta.assistants.create(
+        name="Regulatory Summary Assistant",
+        instructions="Provide brief summaries of financial regulations relevant to companies. Focus on key compliance requirements and regulatory frameworks.",
+        model="gpt-4-turbo-preview",
+        tools=[{"type": "file_search"}],
+        tool_resources={
+            "file_search": {
+                "vector_store_ids": [vector_store.id]
+            }
+        }
+    )
+    print(summary_assistant.id)
+    ```
+    
+    **2. Report Assistant**
+    
+    ```python
+    report_assistant = client.beta.assistants.create(
+        name="Compliance Red Flag Assistant",
+        instructions="Identify financial compliance red flags in company data. Analyze potential regulatory violations, risk factors, and compliance concerns that might affect business operations.",
+        model="gpt-4-turbo-preview",
+        tools=[{"type": "file_search"}],
+        tool_resources={
+            "file_search": {
+                "vector_store_ids": [vector_store.id]
+            }
+        }
+    )
+    print(report_assistant.id)
+    ```
+    
+    **3. Resource Assistant**
+    
+    ```python
+    resource_assistant = client.beta.assistants.create(
+        name="Regulatory Resources Assistant",
+        instructions="List relevant financial regulatory documents, compliance frameworks, and regulatory resources for companies. Provide specific document references and regulatory citations.",
+        model="gpt-4-turbo-preview",
+        tools=[{"type": "file_search"}],
+        tool_resources={
+            "file_search": {
+                "vector_store_ids": [vector_store.id]
+            }
+        }
+    )
+    print(resource_assistant.id)
+    ```
+  </Step>
+  
+  <Step title="Get XRP Testnet credentials">
+    The application needs testnet wallet credentials for sending test transactions.
+    
+    ### Using XRP Testnet Faucet
+    
+    1. Visit [XRP Testnet Faucet](https://xrpl.org/xrp-testnet-faucet.html)
+    2. Click "Generate Testnet credentials"
+    3. Save the address and secret
+    
+    Example output:
+    ```json
+    {
+      "account": {
+        "address": "rN7n7otQDd6FczFgLdlqtyMVrn3LUHcJ3q",
+        "secret": "sEdTM1uX8pu2do5XvTnutH6HsouMaM2"
+      },
+      "balance": 10000
+    }
+    ```
+    
+    <Warning>
+    These are **testnet** credentials only. Never use production XRP wallet secrets in the application.
+    </Warning>
+  </Step>
+  
+  <Step title="Configure application secrets">
+    Create the Streamlit secrets file with all required credentials:
+    
+    ```bash
+    mkdir -p .streamlit
+    ```
+    
+    Create `.streamlit/secrets.toml`:
+    
+    ```toml .streamlit/secrets.toml
+    # OpenAI Configuration
+    OPENAI_API_KEY = "sk-proj-..."
+    VECTOR_STORAGE_ID = "vs_..."
+    ASSISTANT_ID = "asst_..."  # Report Assistant
+    SUMMARY_ASSISTANT = "asst_..."  # Summary Assistant
+    RESOURCE_ASSISTANT = "asst_..."  # Resource Assistant
+    
+    # XRP Testnet Wallet Credentials
+    TEST_WALLET_ADDRESS = "rN7n7otQDd6FczFgLdlqtyMVrn3LUHcJ3q"
+    TEST_WALLET_SECRET = "sEdTM1uX8pu2do5XvTnutH6HsouMaM2"
+    ```
+    
+    ### Configuration reference
+    
+    From `ripple_challange.py:12-13` and `ripple_challange.py:73-77`:
+    
+    ```python
+    # XRP wallet configuration
+    test_wallet_address = st.secrets["TEST_WALLET_ADDRESS"]
+    test_wallet_secret = st.secrets["TEST_WALLET_SECRET"]
+    
+    # OpenAI configuration
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    vector_storage_id = st.secrets["VECTOR_STORAGE_ID"]
+    report_assistant_id = st.secrets["ASSISTANT_ID"]
+    summary_assistant_id = st.secrets["SUMMARY_ASSISTANT"]
+    resource_assistant_id = st.secrets["RESOURCE_ASSISTANT"]
+    ```
+    
+    <Note>
+    Add `.streamlit/secrets.toml` to your `.gitignore` to prevent accidentally committing sensitive credentials.
+    </Note>
+  </Step>
+  
+  <Step title="Verify installation">
+    Test that everything is configured correctly:
+    
+    ```bash
+    streamlit run ripple_challange.py
+    ```
+    
+    The application should:
+    - Open in your browser at `http://localhost:8501`
+    - Display the title "Regulation risk AI by Sweephy on XRP Ledger"
+    - Show the input form for wallet address and amount
+    - Have no error messages in the terminal or browser
+    
+    ### Quick connectivity test
+    
+    Check Redis connection:
+    ```bash
+    redis-cli ping
+    ```
+    
+    Test XRP Testnet connectivity:
+    ```python
+    from xrpl.clients import JsonRpcClient
+    client = JsonRpcClient("https://s.altnet.rippletest.net:51234/")
+    print("Connected to XRP Testnet")
+    ```
+  </Step>
+</Steps>
+
+## Configuration details
+
+### XRP Ledger connection
+
+The application connects to XRP Testnet at:
+
+```python
+# From ripple_challange.py:17
+JSON_RPC_URL = "https://s.altnet.rippletest.net:51234/"
+client = JsonRpcClient(JSON_RPC_URL)
+```
+
+### XRPScan API
+
+Account information is fetched from:
+
+```python
+# From ripple_challange.py:52
+url = f"https://api.xrpscan.com/api/v1/account/{address}"
+```
+
+No API key is required for XRPScan.
+
+### Redis caching strategy
+
+The `CrawlUtil` class caches crawled websites to avoid redundant crawls:
+
+```python
+# From crawl_util.py:90-92
+if file_id := self.r.get(url):
+    self.r.zadd("vs_files", {file_id: int(time.time())})
+    return
+```
+
+Cached data includes:
+- Crawled HTML content stored in OpenAI vector storage
+- URL to file ID mappings
+- Timestamp-based sorted sets for cache management
+
+## Environment variables (alternative to secrets.toml)
+
+If you prefer environment variables over Streamlit secrets:
+
+```bash
+export OPENAI_API_KEY="sk-proj-..."
+export VECTOR_STORAGE_ID="vs_..."
+export ASSISTANT_ID="asst_..."
+export SUMMARY_ASSISTANT="asst_..."
+export RESOURCE_ASSISTANT="asst_..."
+export TEST_WALLET_ADDRESS="rN7n7otQDd6FczFgLdlqtyMVrn3LUHcJ3q"
+export TEST_WALLET_SECRET="sEdTM1uX8pu2do5XvTnutH6HsouMaM2"
+```
+
+Then modify `ripple_challange.py` to read from `os.environ` instead of `st.secrets`.
+
+## Troubleshooting
+
+### Redis connection refused
+
+**Error:** `redis.exceptions.ConnectionError: Error 111 connecting to localhost:6379. Connection refused.`
+
+**Solution:** Start Redis server:
+```bash
+redis-server
+```
+
+### OpenAI API errors
+
+**Error:** `openai.AuthenticationError: Incorrect API key provided`
+
+**Solution:** Verify your API key in `.streamlit/secrets.toml` is correct and has proper permissions.
+
+### XRP Testnet connection issues
+
+**Error:** Connection timeouts to `s.altnet.rippletest.net`
+
+**Solution:** Check your internet connection and firewall settings. The testnet may occasionally be unavailable.
+
+### Missing dependencies
+
+**Error:** `ModuleNotFoundError: No module named 'xrpl'`
+
+**Solution:** Install missing packages:
+```bash
+pip install xrpl-py requests beautifulsoup4 redis openai streamlit
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart guide"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Run your first risk assessment now that installation is complete
+  </Card>
+  <Card
+    title="Introduction"
+    icon="book"
+    href="/introduction"
+  >
+    Learn more about the system architecture and capabilities
+  </Card>
+</CardGroup>

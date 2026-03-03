@@ -1,0 +1,187 @@
+---
+title: "extract_company_from_url"
+description: "Extract the company or domain name from a URL string"
+---
+
+## Method Signature
+
+```python
+@staticmethod
+def extract_company_from_url(url):
+```
+
+## Overview
+
+The `extract_company_from_url` static method extracts the primary domain name from a URL, handling various URL formats and TLD (Top-Level Domain) structures. It's useful for identifying company names from website URLs.
+
+## Parameters
+
+<ParamField path="url" type="str" required>
+  The URL to extract the company name from. Can be with or without the protocol (http:// or https://).
+  
+  Examples:
+  - `"https://www.example.com"`
+  - `"example.co.uk"`
+  - `"subdomain.example.com"`
+</ParamField>
+
+## Return Value
+
+<ResponseField type="str">
+  The extracted company/domain name without TLD or subdomains.
+  
+  Examples:
+  - `"example.com"` → `"example"`
+  - `"www.github.com"` → `"github"`
+  - `"api.stripe.co.uk"` → `"stripe"`
+</ResponseField>
+
+## Implementation
+
+```python
+@staticmethod
+def extract_company_from_url(url):
+    # Parse the URL
+    parsed_url = urlparse(
+        url if url.startswith(('http://', 'https://')) else 'http://' + url
+    )
+    # Get the hostname
+    hostname = parsed_url.hostname or url
+    # Split the hostname into parts
+    parts = hostname.split('.')
+
+    # Handle different TLD structures
+    if len(parts) > 2:
+        if parts[-2] in ['co', 'com', 'net', 'org', 'gov']:
+            # For domains like co.uk, com.au, etc.
+            domain = parts[-3]
+        else:
+            # For regular subdomains
+            domain = parts[-2]
+    else:
+        # For simple domains
+        domain = parts[0]
+
+    return domain
+```
+
+## TLD Handling
+
+The method intelligently handles different domain structures:
+
+### Simple Domains
+
+```python
+CrawlUtil.extract_company_from_url("example.com")
+# Returns: "example"
+```
+
+### Subdomains
+
+```python
+CrawlUtil.extract_company_from_url("www.example.com")
+# Returns: "example"
+
+CrawlUtil.extract_company_from_url("api.example.com")
+# Returns: "example"
+```
+
+### Multi-part TLDs
+
+```python
+CrawlUtil.extract_company_from_url("example.co.uk")
+# Returns: "example"
+
+CrawlUtil.extract_company_from_url("example.com.au")
+# Returns: "example"
+
+CrawlUtil.extract_company_from_url("www.example.gov.uk")
+# Returns: "example"
+```
+
+### URLs Without Protocol
+
+```python
+CrawlUtil.extract_company_from_url("example.com")
+# Returns: "example"
+
+CrawlUtil.extract_company_from_url("https://example.com")
+# Returns: "example"
+```
+
+## Logic Breakdown
+
+1. **Protocol Normalization**: Adds `http://` if no protocol is present
+2. **URL Parsing**: Uses `urlparse` to extract the hostname
+3. **Domain Splitting**: Splits hostname by dots into parts
+4. **TLD Detection**:
+   - If last part before TLD is in `['co', 'com', 'net', 'org', 'gov']`, use third-to-last part
+   - Otherwise, use second-to-last part
+   - For simple domains (≤2 parts), use first part
+
+## Example Usage
+
+```python
+from crawl_util import CrawlUtil
+
+# Extract company names from various URL formats
+company1 = CrawlUtil.extract_company_from_url("https://www.stripe.com")
+print(company1)  # Output: "stripe"
+
+company2 = CrawlUtil.extract_company_from_url("api.github.com")
+print(company2)  # Output: "github"
+
+company3 = CrawlUtil.extract_company_from_url("bbc.co.uk")
+print(company3)  # Output: "bbc"
+
+company4 = CrawlUtil.extract_company_from_url("shop.example.com.au")
+print(company4)  # Output: "example"
+```
+
+## Use Cases
+
+### File Naming
+
+```python
+url = "https://www.acmecorp.com/about"
+company = CrawlUtil.extract_company_from_url(url)
+filename = f"{company}_data.txt"
+# filename = "acmecorp_data.txt"
+```
+
+### Display Names
+
+```python
+def display_company_info(url):
+    company = CrawlUtil.extract_company_from_url(url)
+    return f"Analyzing {company.capitalize()}..."
+
+# Usage
+message = display_company_info("https://tesla.com")
+print(message)  # "Analyzing Tesla..."
+```
+
+### Cache Keys
+
+```python
+def generate_cache_key(url):
+    company = CrawlUtil.extract_company_from_url(url)
+    return f"company:{company}:data"
+
+key = generate_cache_key("https://www.openai.com")
+# key = "company:openai:data"
+```
+
+## Limitations
+
+- Does not handle all international TLD structures (e.g., `.co.jp`, `.com.br` with different patterns)
+- May not correctly identify company name for complex subdomain structures
+- Returns the fallback to the original URL if parsing fails
+- Does not validate if the URL is actually valid or reachable
+
+## Static Method Benefits
+
+- **No instance required**: Can be called without creating a `CrawlUtil` object
+- **Pure function**: No side effects, same input always produces same output
+- **Utility function**: Useful independently of crawling functionality
+- **Testable**: Easy to unit test with various URL inputs

@@ -1,0 +1,258 @@
+---
+title: Compliance checks
+description: Understand how to interpret AI-generated compliance reports, identify red flags, and review regulatory documents
+---
+
+The XRP Transaction Risk AI platform generates comprehensive compliance reports using three specialized OpenAI assistants. This guide explains how to interpret the reports and understand the compliance framework.
+
+## Three-pillar compliance framework
+
+The system generates three types of analysis for each transaction:
+
+<CardGroup cols={3}>
+  <Card title="Summary" icon="file-lines">
+    Brief overview of relevant financial regulations
+  </Card>
+  <Card title="Report" icon="flag">
+    Detailed red flag analysis and compliance risks
+  </Card>
+  <Card title="Resources" icon="book">
+    List of applicable regulatory documents
+  </Card>
+</CardGroup>
+
+## Understanding the summary
+
+The **Summary Assistant** provides a high-level overview of the regulatory landscape:
+
+```python
+summary_prompt = f"Provide a brief summary of the financial regulations relevant to the company: {company_name}"
+```
+
+### What the summary includes
+
+- Applicable financial regulations based on jurisdiction
+- Industry-specific compliance requirements
+- Key regulatory bodies and frameworks
+- Overview of licensing and registration needs
+
+<Info>
+  The summary is designed to give you immediate context about which regulations apply to the business associated with the destination wallet.
+</Info>
+
+## Interpreting the compliance report
+
+The **Report Assistant** performs deep analysis to identify potential compliance risks:
+
+```python
+report_prompt = f"Identify any financial compliance red flags in the company data: {company_name} that might affect their business compliance."
+```
+
+### Red flag categories
+
+The report analyzes several risk dimensions:
+
+<AccordionGroup>
+  <Accordion title="Licensing and registration">
+    - Missing or expired financial licenses
+    - Operating without required registrations
+    - Jurisdictional compliance gaps
+    - Regulatory approval status
+  </Accordion>
+
+  <Accordion title="AML/KYC compliance">
+    - Anti-Money Laundering controls
+    - Know Your Customer procedures
+    - Transaction monitoring systems
+    - Suspicious activity reporting
+  </Accordion>
+
+  <Accordion title="Consumer protection">
+    - Disclosure requirements
+    - Terms of service compliance
+    - Privacy policy adequacy
+    - Customer fund protection
+  </Accordion>
+
+  <Accordion title="Operational compliance">
+    - Internal controls and governance
+    - Audit and reporting requirements
+    - Record keeping practices
+    - Risk management frameworks
+  </Accordion>
+
+  <Accordion title="Cross-border regulations">
+    - International transfer restrictions
+    - Multi-jurisdiction compliance
+    - Sanctions screening
+    - Foreign exchange controls
+  </Accordion>
+</AccordionGroup>
+
+### Risk severity levels
+
+When reviewing the report, assess red flags by severity:
+
+| Severity | Description | Action |
+|----------|-------------|--------|
+| **Critical** | Clear regulatory violation or missing required license | Do not proceed with transaction |
+| **High** | Significant compliance gaps or unclear regulatory status | Request additional documentation |
+| **Medium** | Minor compliance concerns or outdated information | Proceed with caution |
+| **Low** | Best practice recommendations or informational notes | Safe to proceed |
+
+<Warning>
+  Critical and high-severity red flags should trigger immediate review. Consider consulting with a compliance officer before proceeding with the transaction.
+</Warning>
+
+## Reviewing regulatory resources
+
+The **Resource Assistant** compiles relevant regulatory documentation:
+
+```python
+resource_prompt = f"List the relevant financial regulatory documents for the company: {company_name}"
+```
+
+### Types of resources provided
+
+- Applicable laws and statutes
+- Regulatory guidance documents
+- Industry standards and frameworks
+- Licensing requirements and applications
+- Compliance checklists and templates
+
+<Tip>
+  Cross-reference the resources section with the red flags in the report to verify compliance claims and identify documentation gaps.
+</Tip>
+
+## How the AI generates reports
+
+The system uses OpenAI Assistants with access to a vector database of regulatory information:
+
+<Steps>
+  <Step title="Web crawling">
+    Business information is crawled from the domain associated with the wallet address
+  </Step>
+
+  <Step title="Vector storage">
+    Crawled content is uploaded to OpenAI's vector storage for semantic search
+  </Step>
+
+  <Step title="Context retrieval">
+    Each assistant queries the vector database to find relevant regulatory information
+  </Step>
+
+  <Step title="Report generation">
+    The AI streams analysis based on the retrieved context and regulatory knowledge
+  </Step>
+</Steps>
+
+```python
+def run_assistant(prompt, assistant_id):
+    thread = client.beta.threads.create(
+        messages=[
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": prompt}],
+            }
+        ]
+    )
+    run = client.beta.threads.runs.create(
+        thread_id=thread.id, assistant_id=assistant_id, stream=True
+    )
+    
+    result_text = ""
+    for event in run:
+        if isinstance(event, ThreadMessageCompleted):
+            result_text = event.data.content[0].text.value
+    return result_text
+```
+
+## Account data integration
+
+Compliance reports are enhanced with XRP account data:
+
+```python
+st.markdown(
+    f"""
+    <div style="background-color: #f9f9f9; padding: 10px; border-radius: 5px;">
+        <strong>Verified:</strong> {'Yes' if verified else 'No'}<br>
+        <strong>Domain:</strong> {domain}<br>
+        <strong>Twitter:</strong> {twitter}<br>
+        <strong>Balance:</strong> {balance}<br>
+        <strong>Initial Balance:</strong> {initial_balance}
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+```
+
+### Why account data matters
+
+- **Verified status**: Indicates XRPScan has validated the identity
+- **Balance history**: Shows account activity and legitimacy
+- **Social proof**: Twitter verification adds credibility
+- **Domain**: Links wallet to real business entity
+
+## Making transaction decisions
+
+Use this decision framework when reviewing compliance reports:
+
+<Tabs>
+  <Tab title="Proceed">
+    **Safe to proceed if:**
+    - Account is verified on XRPScan
+    - No critical red flags identified
+    - All required licenses are current
+    - Business operates in compliant jurisdiction
+    - Regulatory resources are complete and accessible
+  </Tab>
+
+  <Tab title="Proceed with caution">
+    **Monitor carefully if:**
+    - Medium-severity compliance concerns
+    - Incomplete public information
+    - Recently issued licenses (less than 6 months)
+    - Operating in multiple jurisdictions
+    - Limited transaction history
+  </Tab>
+
+  <Tab title="Do not proceed">
+    **Reject transaction if:**
+    - Critical red flags identified
+    - Missing required licenses
+    - Operating in sanctioned jurisdictions
+    - Unverified account with no domain
+    - Evidence of regulatory violations
+  </Tab>
+</Tabs>
+
+## Limitations and disclaimers
+
+<Warning>
+  The AI-generated compliance reports are for informational purposes only and do not constitute legal or financial advice. Always consult with qualified compliance professionals before making transaction decisions.
+</Warning>
+
+### Known limitations
+
+- AI analysis is based on publicly available information from web crawling
+- Regulatory databases may not be completely up-to-date
+- Some jurisdictions may have limited regulatory data available
+- The system cannot access internal compliance documents
+- Reports reflect a point-in-time assessment
+
+<Info>
+  For high-value or high-risk transactions, consider supplementing the AI report with manual due diligence and professional compliance review.
+</Info>
+
+## Best practices
+
+1. **Review all three sections**: Summary, Report, and Resources work together
+2. **Cross-reference findings**: Verify red flags against regulatory resources
+3. **Check account verification**: Unverified accounts require extra scrutiny
+4. **Document your decision**: Save the compliance report for audit trails
+5. **Re-assess periodically**: Regulatory status can change over time
+6. **Escalate concerns**: Flag critical issues to compliance team
+
+<Tip>
+  Set up a threshold policy for your organization: define transaction amount limits that trigger different levels of compliance review based on red flag severity.
+</Tip>

@@ -1,0 +1,327 @@
+---
+title: "Regulatory Compliance Analysis"
+description: "Understand how the platform checks financial compliance, generates risk reports, and provides regulatory resources for XRP transactions"
+---
+
+# Regulatory Compliance Analysis
+
+The XRP Transaction Risk AI platform provides comprehensive regulatory compliance analysis through three specialized components: Summary Generation, Red Flag Identification, and Resource Discovery.
+
+## Three-Pillar Compliance Framework
+
+<CardGroup cols={3}>
+  <Card title="Summary" icon="file-lines">
+    Brief overview of relevant regulations
+  </Card>
+  <Card title="Report" icon="triangle-exclamation">
+    Detailed red flag identification
+  </Card>
+  <Card title="Resources" icon="book">
+    Regulatory documents and references
+  </Card>
+</CardGroup>
+
+## Compliance Workflow
+
+The compliance analysis happens in parallel across three specialized AI assistants:
+
+```python
+# Define the three analysis prompts
+summary_prompt = f"Provide a brief summary of the financial regulations relevant to the company: {company_name}"
+report_prompt = f"Identify any financial compliance red flags in the company data: {company_name} that might affect their business compliance."
+resource_prompt = f"List the relevant financial regulatory documents for the company: {company_name}"
+
+# Map assistants to their purposes
+assistants_ = {
+    'resource': resource_assistant_id,
+    'report': report_assistant_id,
+    'summary': summary_assistant_id,
+}
+prompts_ = {
+    'resource': resource_prompt,
+    'report': report_prompt,
+    'summary': summary_prompt,
+}
+```
+
+<Info>
+  Each assistant has been specifically trained and configured to focus on its domain: summarization, risk detection, or resource identification.
+</Info>
+
+## Summary Generation
+
+The summary assistant provides a high-level overview of regulatory compliance requirements:
+
+<Tabs>
+  <Tab title="Purpose">
+    **Objective:** Provide executives and decision-makers with a quick understanding of regulatory landscape
+
+    **Key Elements:**
+    - Applicable financial regulations
+    - Industry-specific compliance requirements
+    - Jurisdictional considerations
+    - Current compliance status overview
+
+    ```python
+    summary_prompt = f"Provide a brief summary of the financial regulations relevant to the company: {company_name}"
+    ```
+  </Tab>
+
+  <Tab title="Output Format">
+    The summary is displayed prominently in the UI:
+
+    ```python
+    st.subheader("Summary")
+    st.markdown(
+        f"<div style='background-color: #f9f9f9; padding: 10px; border-radius: 5px;'>"
+        f"{results.get('summary', '')}</div>",
+        unsafe_allow_html=True
+    )
+    ```
+
+    **Typical Content:**
+    - 2-3 paragraph overview
+    - Key regulatory frameworks mentioned
+    - Overall risk level indicator
+    - Business type classification
+  </Tab>
+
+  <Tab title="Use Cases">
+    - Quick risk assessment before transaction approval
+    - Due diligence screening
+    - Executive briefings
+    - Compliance dashboard summaries
+  </Tab>
+</Tabs>
+
+## Red Flag Identification
+
+The report assistant performs deep analysis to identify potential compliance issues:
+
+<Accordion title="Red Flag Detection System">
+  ```python
+  report_prompt = f"Identify any financial compliance red flags in the company data: {company_name} that might affect their business compliance."
+  
+  # Execute the analysis
+  results['report'] = run_assistant(
+      prompt=report_prompt,
+      assistant_id=report_assistant_id
+  )
+  ```
+
+  **Analysis Areas:**
+  - **Licensing Issues**: Missing or expired financial licenses
+  - **Jurisdictional Conflicts**: Operating in restricted territories
+  - **AML/KYC Gaps**: Inadequate anti-money laundering procedures
+  - **Data Privacy**: GDPR, CCPA, or other privacy regulation violations
+  - **Transaction Limits**: Exceeding regulatory transaction thresholds
+  - **Disclosure Requirements**: Missing mandatory disclosures
+</Accordion>
+
+### Report Generation Process
+
+The report assistant uses the following workflow:
+
+```python
+def run_assistant(prompt, assistant_id):
+    # Create a conversation thread
+    thread = client.beta.threads.create(
+        messages=[
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": prompt}],
+            }
+        ]
+    )
+    
+    # Stream the analysis results
+    run = client.beta.threads.runs.create(
+        thread_id=thread.id, assistant_id=assistant_id, stream=True
+    )
+
+    result_text = ""
+    for event in run:
+        if isinstance(event, ThreadMessageCompleted):
+            result_text = event.data.content[0].text.value
+        if isinstance(event, ThreadRunFailed):
+            print(event)
+            break
+    return result_text
+```
+
+<Note>
+  The assistant has access to the vector storage containing all crawled website content, enabling it to cite specific evidence from the company's public information.
+</Note>
+
+## Resource Discovery
+
+The resource assistant identifies relevant regulatory documents and references:
+
+<Tabs>
+  <Tab title="Document Types">
+    **Regulatory Resources Identified:**
+    - Federal regulations (e.g., SEC, FinCEN)
+    - State-level compliance requirements
+    - International standards (e.g., FATF recommendations)
+    - Industry guidelines and best practices
+    - Relevant case law and precedents
+
+    ```python
+    resource_prompt = f"List the relevant financial regulatory documents for the company: {company_name}"
+    ```
+  </Tab>
+
+  <Tab title="Output Structure">
+    ```python
+    st.subheader("Resources")
+    st.markdown(
+        f"<div style='background-color: #f9f9f9; padding: 10px; border-radius: 5px;'>"
+        f"{results.get('resource', '')}</div>",
+        unsafe_allow_html=True
+    )
+    ```
+
+    **Typical Format:**
+    - Bulleted list of regulations
+    - Document titles with reference numbers
+    - Links to official sources (when available)
+    - Jurisdictional indicators
+  </Tab>
+
+  <Tab title="Practical Use">
+    **How to Use Resources:**
+    1. Review listed regulations for applicability
+    2. Cross-reference with internal compliance checklists
+    3. Assign to legal team for detailed review
+    4. Update compliance documentation as needed
+  </Tab>
+</Tabs>
+
+## Parallel Processing Architecture
+
+All three assistants run in sequence to generate comprehensive results:
+
+```python
+# Start AI assistants
+results = {}
+for key in assistants_.keys():
+    results[key] = run_assistant(
+        prompt=prompts_[key],
+        assistant_id=assistants_[key]
+    )
+
+# Results contain: 'summary', 'report', 'resource'
+```
+
+<Tip>
+  While the current implementation processes assistants sequentially, the architecture can be easily modified to run them in parallel for faster results using threading or async/await patterns.
+</Tip>
+
+## Combining with Account Data
+
+Compliance reports are enriched with XRP account information:
+
+```python
+st.subheader("XRP Account Information")
+st.markdown(
+    f"""
+    <div style="background-color: #f9f9f9; padding: 10px; border-radius: 5px;">
+        <strong>Verified:</strong> {'Yes' if verified else 'No'}<br>
+        <strong>Domain:</strong> {domain}<br>
+        <strong>Twitter:</strong> {twitter}<br>
+        <strong>Balance:</strong> {balance}<br>
+        <strong>Initial Balance:</strong> {initial_balance}
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+```
+
+<Accordion title="Account Information Context">
+  **Why Account Data Matters:**
+  
+  - **Verification Status**: Confirms business legitimacy
+  - **Domain Association**: Links wallet to registered business
+  - **Social Presence**: Additional verification layer
+  - **Balance History**: Transaction pattern analysis
+  - **Initial Balance**: Account age and establishment indicator
+
+  This contextual information helps compliance officers make informed decisions about transaction risk.
+</Accordion>
+
+## Report Display
+
+The compliance report is presented in a structured, user-friendly format:
+
+```python
+st.markdown('---')
+report_container = st.container()
+with report_container:
+    st.subheader("Summary")
+    st.markdown(f"<div style='background-color: #f9f9f9; padding: 10px; border-radius: 5px;'>{results.get('summary', '')}</div>", unsafe_allow_html=True)
+    
+    st.subheader("Report")
+    st.markdown(f"<div style='background-color: #f9f9f9; padding: 10px; border-radius: 5px;'>{results.get('report', '')}</div>", unsafe_allow_html=True)
+    
+    st.subheader("Resources")
+    st.markdown(f"<div style='background-color: #f9f9f9; padding: 10px; border-radius: 5px;'>{results.get('resource', '')}</div>", unsafe_allow_html=True)
+```
+
+## Error Handling in Compliance Analysis
+
+<Accordion title="Stream Event Handling">
+  ```python
+  for event in run:
+      if isinstance(event, ThreadMessageCompleted):
+          result_text = event.data.content[0].text.value
+      if isinstance(event, ThreadRunFailed):
+          print(event)
+          break
+  ```
+
+  **Failure Scenarios:**
+  - API rate limits exceeded
+  - Vector storage query timeouts
+  - Insufficient training data
+  - Network connectivity issues
+
+  When a `ThreadRunFailed` event occurs, the system logs the error and continues with available data from other assistants.
+</Accordion>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Before Transaction" icon="search">
+    - Run full compliance check
+    - Review all red flags
+    - Verify account information
+    - Check resource list for updates
+  </Card>
+  <Card title="Documentation" icon="folder-open">
+    - Save compliance reports
+    - Track changes over time
+    - Maintain audit trail
+    - Update risk assessments
+  </Card>
+</CardGroup>
+
+## Integration Points
+
+<Info>
+  The compliance system integrates with:
+  - **XRPScan API** (ripple_challange.py:52) - Account information retrieval
+  - **OpenAI Assistants API** - AI-powered analysis
+  - **Vector Storage** - Semantic search of business data
+  - **Redis Cache** - Performance optimization
+</Info>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="XRP Transactions" icon="coins" href="/features/xrp-transactions">
+    Learn about sending XRP after compliance approval
+  </Card>
+  <Card title="AI Assistants" icon="brain" href="/features/ai-assistants">
+    Deep dive into assistant configuration and training
+  </Card>
+</CardGroup>

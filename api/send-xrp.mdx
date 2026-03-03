@@ -1,0 +1,156 @@
+---
+title: send_xrp_test
+description: Send XRP from a test wallet to a destination address on the XRP Ledger testnet
+---
+
+## Function Signature
+
+```python
+send_xrp_test(destination_address, amount_xrp)
+```
+
+Sends XRP from a configured test wallet to a specified destination address using the XRP Ledger testnet. This function handles the complete transaction lifecycle including balance checks, transaction signing, and submission.
+
+## Parameters
+
+<ParamField path="destination_address" type="string" required>
+  The XRP Ledger address to receive the funds. Must be a valid XRP address format (e.g., "rMdG3ju8pgyVh29ELPWaDuA74CpWW6Fxns").
+</ParamField>
+
+<ParamField path="amount_xrp" type="string" required>
+  The amount of XRP to send. The value is specified in drops (1 XRP = 1,000,000 drops).
+</ParamField>
+
+## Return Value
+
+<ResponseField name="None" type="void">
+  This function does not return a value. It performs the XRP transaction and prints the balance information to the console.
+</ResponseField>
+
+## Implementation Details
+
+The function performs the following operations:
+
+1. **Client Connection**: Connects to the XRP testnet at `https://s.altnet.rippletest.net:51234/`
+2. **Wallet Initialization**: Creates a wallet from the configured test wallet seed
+3. **Balance Check (Before)**: Retrieves and prints the sender's balance before the transaction
+4. **Payment Transaction**: Prepares a Payment transaction with the destination and amount
+5. **Signing**: Auto-fills transaction details and signs with the test wallet
+6. **Submission**: Submits the transaction and waits for confirmation
+7. **Balance Check (After)**: Retrieves the sender's balance after the transaction
+
+## XRP API Endpoints Used
+
+### JSON-RPC Endpoint
+```
+https://s.altnet.rippletest.net:51234/
+```
+
+This endpoint provides access to the XRP Ledger testnet for transaction submission and account queries.
+
+## Code Example
+
+```python
+import xrpl
+from xrpl.clients import JsonRpcClient
+from xrpl.wallet import Wallet
+from xrpl.transaction import autofill_and_sign, submit_and_wait
+from xrpl.models.transactions import Payment
+from xrpl.models.requests import AccountInfo
+
+def send_xrp_test(destination_address, amount_xrp):
+    JSON_RPC_URL = "https://s.altnet.rippletest.net:51234/"
+    client = JsonRpcClient(JSON_RPC_URL)
+    
+    # Create a wallet from the testnet credentials
+    test_wallet = Wallet.from_seed(test_wallet_secret)
+
+    # Define the destination address and amount to send
+    destination_address = destination_address
+    amount_to_send = amount_xrp  # Amount in drops
+
+    # Check the balance of the sender account before the transaction
+    account_info = AccountInfo(
+        account=test_wallet.classic_address,
+        ledger_index="validated"
+    )
+    response = client.request(account_info)
+    print(f"Balance before transaction: {response.result['account_data']['Balance']} drops")
+
+    # Prepare the payment transaction
+    payment_tx = Payment(
+        account=test_wallet.classic_address,
+        amount=amount_to_send,
+        destination=destination_address
+    )
+
+    # Sign and autofill the transaction
+    signed_tx = autofill_and_sign(payment_tx, client, test_wallet)
+
+    # Submit the transaction
+    response = submit_and_wait(signed_tx, client)
+
+    # Check the balance of the sender account after the transaction
+    response = client.request(account_info)
+```
+
+## Usage Example
+
+```python
+# Send 5 XRP (5,000,000 drops) to a destination address
+destination = "rMdG3ju8pgyVh29ELPWaDuA74CpWW6Fxns"
+amount = "5000000"  # 5 XRP in drops
+
+send_xrp_test(destination, amount)
+```
+
+## Request/Response Example
+
+### AccountInfo Request (Before Transaction)
+```python
+AccountInfo(
+    account="rN7n7otQDd6FczFgLdlqtyMVrn3HMgk5of",
+    ledger_index="validated"
+)
+```
+
+### AccountInfo Response
+```json
+{
+  "result": {
+    "account_data": {
+      "Balance": "10000000",
+      "Flags": 0,
+      "LedgerEntryType": "AccountRoot",
+      "OwnerCount": 0,
+      "PreviousTxnID": "...",
+      "Sequence": 1
+    },
+    "ledger_index": 12345
+  }
+}
+```
+
+### Payment Transaction
+```python
+Payment(
+    account="rN7n7otQDd6FczFgLdlqtyMVrn3HMgk5of",
+    amount="5000000",
+    destination="rMdG3ju8pgyVh29ELPWaDuA74CpWW6Fxns"
+)
+```
+
+## Error Handling
+
+While this function doesn't include explicit error handling in the source code, you should consider:
+
+- **Invalid destination address**: Ensure the destination address is a valid XRP Ledger address
+- **Insufficient balance**: The sender must have enough XRP to cover the amount plus transaction fees
+- **Network errors**: Handle connection issues to the testnet endpoint
+- **Wallet authentication**: Ensure the test wallet secret is valid
+
+## Security Considerations
+
+- The `test_wallet_secret` must be stored securely (e.g., in environment variables or secrets manager)
+- This function is designed for testnet use only - do not use with mainnet credentials
+- Always validate destination addresses before sending transactions

@@ -1,0 +1,100 @@
+---
+title: "CrawlUtil"
+description: "Utility class for crawling websites and storing content in vector databases with Redis caching"
+---
+
+## Overview
+
+The `CrawlUtil` class provides functionality for crawling websites, extracting content, and storing it in OpenAI vector stores with Redis-based caching. It handles breadth-first website traversal, HTML parsing, and progress tracking.
+
+## Class Definition
+
+```python
+class CrawlUtil:
+    r = Redis(host='localhost', port=6379, db=0)
+
+    def __init__(self, client, vector_storage_id, progress_text) -> None:
+        self.client: OpenAI = client
+        self.vector_storage_id = vector_storage_id
+        self.progress_text = progress_text
+```
+
+## Initialization
+
+<ParamField path="client" type="OpenAI" required>
+  OpenAI client instance for interacting with the OpenAI API and vector stores
+</ParamField>
+
+<ParamField path="vector_storage_id" type="str" required>
+  The ID of the OpenAI vector store where crawled content will be uploaded
+</ParamField>
+
+<ParamField path="progress_text" type="str" required>
+  Text to display in the progress bar during crawling operations
+</ParamField>
+
+## Redis Integration
+
+The class uses a shared Redis connection for caching:
+
+- **Host**: localhost
+- **Port**: 6379
+- **Database**: 0
+
+### Caching Strategy
+
+- URLs are mapped to file IDs to avoid re-uploading duplicate content
+- File IDs are mapped back to URLs for reverse lookups
+- A sorted set `vs_files` tracks vector store files with timestamps for cleanup
+
+## Key Features
+
+- **Breadth-first crawling**: Systematically explores website structure
+- **Same-domain filtering**: Only crawls links within the base domain
+- **Progress tracking**: Integrates with Streamlit progress bars
+- **Redis caching**: Prevents duplicate uploads of previously crawled sites
+- **Vector storage**: Automatically uploads content to OpenAI vector stores
+
+## Methods
+
+- [`website_crawler(url, my_bar)`](/api/website-crawler) - Main crawling method
+- [`extract_company_from_url(url)`](/api/extract-company) - Static method for domain extraction
+- `fetch_html(url)` - Fetches HTML content from a URL
+- `parse_html_for_links(base_url, html_content)` - Extracts links from HTML
+- `crawl_website(base_url, my_bar)` - Performs the crawling process
+- `get_website_data(base_url, my_bar)` - Retrieves and formats crawled data
+
+## Example Usage
+
+```python
+from openai import OpenAI
+import streamlit as st
+from crawl_util import CrawlUtil
+
+# Initialize OpenAI client
+client = OpenAI(api_key="your-api-key")
+
+# Create vector store
+vector_store = client.beta.vector_stores.create(name="Company Data")
+
+# Create progress bar
+progress_bar = st.progress(0)
+
+# Initialize crawler
+crawler = CrawlUtil(
+    client=client,
+    vector_storage_id=vector_store.id,
+    progress_text="Crawling website..."
+)
+
+# Crawl a website
+crawler.website_crawler("https://example.com", progress_bar)
+```
+
+## Dependencies
+
+- `openai` - OpenAI Python SDK
+- `redis` - Redis client for Python
+- `requests` - HTTP library for fetching web content
+- `beautifulsoup4` - HTML parsing library
+- `urllib.parse` - URL manipulation utilities

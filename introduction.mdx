@@ -1,0 +1,98 @@
+---
+title: Introduction to XRP Transaction Risk AI
+description: AI-powered financial compliance and risk assessment for XRP Ledger transactions
+---
+
+# XRP Transaction Risk AI
+
+XRP Transaction Risk AI is an intelligent compliance analysis system that helps you assess regulatory risks before sending XRP transactions. Built with OpenAI assistants and the XRP Ledger, it crawls business information, analyzes financial compliance, and provides detailed risk reports for destination wallet addresses.
+
+## How it works
+
+The system performs comprehensive due diligence on XRP wallet destinations by:
+
+1. **Fetching wallet information** from the XRP Ledger and XRPScan API
+2. **Crawling business websites** associated with verified wallet addresses
+3. **Analyzing compliance risks** using AI assistants trained on financial regulations
+4. **Generating detailed reports** with summaries, red flags, and regulatory resources
+
+<Note>
+The application requires verified wallet addresses with associated domain information to perform risk assessments.
+</Note>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart guide"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get up and running with your first risk assessment in minutes
+  </Card>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Step-by-step setup for dependencies, Streamlit, and configuration
+  </Card>
+  <Card
+    title="AI-powered analysis"
+    icon="brain"
+  >
+    Three specialized OpenAI assistants analyze summaries, reports, and resources
+  </Card>
+  <Card
+    title="XRP Ledger integration"
+    icon="network-wired"
+  >
+    Direct integration with XRP Testnet for transaction submission
+  </Card>
+</CardGroup>
+
+## What you'll assess
+
+The risk analysis provides three critical components:
+
+**Summary**
+A brief overview of financial regulations relevant to the destination company, helping you understand the regulatory landscape.
+
+**Risk report**
+Identification of compliance red flags in the company data that might affect business compliance, including potential regulatory violations or concerns.
+
+**Regulatory resources**
+Relevant financial regulatory documents and references specific to the company's jurisdiction and industry.
+
+## Architecture overview
+
+The system combines multiple technologies:
+
+- **Streamlit** for the interactive web interface
+- **OpenAI Assistants API** with vector storage for intelligent analysis
+- **XRP Ledger SDK** (`xrpl-py`) for blockchain interactions
+- **Web crawling** with BeautifulSoup and Redis caching
+- **XRPScan API** for enriched wallet metadata
+
+<Warning>
+This application uses the XRP Testnet. Never use production wallet credentials in the configuration.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Get started quickly"
+    icon="bolt"
+    href="/quickstart"
+  >
+    Follow the quickstart to perform your first risk assessment
+  </Card>
+  <Card
+    title="Install dependencies"
+    icon="box"
+    href="/installation"
+  >
+    Set up your development environment with all required packages
+  </Card>
+</CardGroup>

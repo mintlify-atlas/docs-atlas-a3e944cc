@@ -1,0 +1,518 @@
+---
+title: "AI Assistant Architecture"
+description: "Deep dive into the three specialized OpenAI assistants that power regulatory compliance analysis and risk assessment"
+---
+
+# AI Assistant Architecture
+
+The XRP Transaction Risk AI platform uses three specialized OpenAI assistants, each configured with specific instructions and access to shared vector storage containing crawled business information.
+
+## Three-Assistant System
+
+<CardGroup cols={3}>
+  <Card title="Summary Assistant" icon="file-lines" color="#3b82f6">
+    Generates concise regulatory overviews
+  </Card>
+  <Card title="Report Assistant" icon="triangle-exclamation" color="#ef4444">
+    Identifies compliance red flags
+  </Card>
+  <Card title="Resource Assistant" icon="book" color="#10b981">
+    Discovers relevant regulatory documents
+  </Card>
+</CardGroup>
+
+## Configuration and Initialization
+
+All assistants are initialized with OpenAI API credentials and vector storage access:
+
+```python
+# OpenAI configuration
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+vector_storage_id = st.secrets["VECTOR_STORAGE_ID"]
+report_assistant_id = st.secrets["ASSISTANT_ID"]
+summary_assistant_id = st.secrets["SUMMARY_ASSISTANT"]
+resource_assistant_id = st.secrets["RESOURCE_ASSISTANT"]
+```
+
+<Info>
+  **Source location:** ripple_challange.py:73-77
+</Info>
+
+<Note>
+  Each assistant ID is stored in Streamlit secrets for security and easy rotation. These IDs are obtained from the OpenAI Assistants API after creating and configuring each assistant.
+</Note>
+
+## Assistant Orchestration
+
+The assistants are organized in a dictionary structure for systematic execution:
+
+```python
+assistants_ = {
+    'resource': resource_assistant_id,
+    'report': report_assistant_id,
+    'summary': summary_assistant_id,
+}
+prompts_ = {
+    'resource': resource_prompt,
+    'report': report_prompt,
+    'summary': summary_prompt,
+}
+```
+
+<Accordion title="Why This Architecture?">
+  **Benefits of Specialized Assistants:**
+
+  1. **Focused Expertise**: Each assistant is trained for a specific task
+  2. **Parallel Processing**: Can be run concurrently for faster results
+  3. **Independent Scaling**: Adjust resources per assistant based on demand
+  4. **Version Control**: Update one assistant without affecting others
+  5. **Cost Optimization**: Use different models/parameters per task
+  6. **Maintainability**: Easier to debug and improve specific functions
+</Accordion>
+
+## Core Execution Function
+
+All three assistants use the same execution pattern with streaming responses:
+
+```python
+def run_assistant(prompt, assistant_id):
+    thread = client.beta.threads.create(
+        messages=[
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": prompt}],
+            }
+        ]
+    )
+    run = client.beta.threads.runs.create(
+        thread_id=thread.id, assistant_id=assistant_id, stream=True
+    )
+
+    result_text = ""
+    for event in run:
+        if isinstance(event, ThreadMessageCompleted):
+            result_text = event.data.content[0].text.value
+        if isinstance(event, ThreadRunFailed):
+            print(event)
+            break
+    return result_text
+```
+
+<Info>
+  **Source location:** ripple_challange.py:153-173
+</Info>
+
+### Execution Flow Breakdown
+
+<Steps>
+  <Step title="Create Thread">
+    Initialize a new conversation thread with the user prompt:
+    ```python
+    thread = client.beta.threads.create(
+        messages=[{
+            "role": "user",
+            "content": [{"type": "text", "text": prompt}]
+        }]
+    )
+    ```
+    
+    Each thread is isolated and maintains its own conversation context.
+  </Step>
+
+  <Step title="Start Streaming Run">
+    Execute the assistant with streaming enabled:
+    ```python
+    run = client.beta.threads.runs.create(
+        thread_id=thread.id, 
+        assistant_id=assistant_id, 
+        stream=True
+    )
+    ```
+    
+    <Tip>
+      Streaming provides real-time results and better user experience compared to waiting for the complete response.
+    </Tip>
+  </Step>
+
+  <Step title="Process Events">
+    Listen for completion or failure events:
+    ```python
+    result_text = ""
+    for event in run:
+        if isinstance(event, ThreadMessageCompleted):
+            result_text = event.data.content[0].text.value
+        if isinstance(event, ThreadRunFailed):
+            print(event)
+            break
+    ```
+    
+    **Event Types:**
+    - `ThreadMessageCompleted`: Successfully generated response
+    - `ThreadRunFailed`: Error occurred during execution
+  </Step>
+
+  <Step title="Return Results">
+    ```python
+    return result_text
+    ```
+  </Step>
+</Steps>
+
+## Summary Assistant
+
+Provides high-level regulatory compliance overviews:
+
+<Tabs>
+  <Tab title="Purpose">
+    **Objective:** Generate executive-level summaries of regulatory requirements
+
+    **Prompt Template:**
+    ```python
+    summary_prompt = f"Provide a brief summary of the financial regulations relevant to the company: {company_name}"
+    ```
+
+    **Expected Output:**
+    - 2-3 paragraph overview
+    - Key regulations mentioned by name
+    - Industry classification
+    - Overall compliance posture
+  </Tab>
+
+  <Tab title="Configuration">
+    **Recommended Assistant Settings:**
+    
+    - **Model**: GPT-4 or GPT-4 Turbo
+    - **Temperature**: 0.3-0.5 (balanced creativity/consistency)
+    - **Instructions**: "You are a financial regulatory expert. Provide concise summaries..."
+    - **Tools**: File search (for vector storage access)
+    - **Vector Store**: Linked to shared storage with crawled content
+  </Tab>
+
+  <Tab title="Use Cases">
+    - Quick pre-transaction screening
+    - Executive briefings
+    - Dashboard widgets
+    - Email alerts
+    - Mobile notifications
+  </Tab>
+</Tabs>
+
+## Report Assistant
+
+Performs deep analysis to identify specific compliance risks:
+
+<Tabs>
+  <Tab title="Purpose">
+    **Objective:** Identify concrete red flags and compliance gaps
+
+    **Prompt Template:**
+    ```python
+    report_prompt = f"Identify any financial compliance red flags in the company data: {company_name} that might affect their business compliance."
+    ```
+
+    **Expected Output:**
+    - Specific red flags with evidence
+    - Risk severity levels
+    - Citations from crawled content
+    - Recommended actions
+  </Tab>
+
+  <Tab title="Configuration">
+    **Recommended Assistant Settings:**
+    
+    - **Model**: GPT-4 (for detailed analysis)
+    - **Temperature**: 0.2 (high accuracy)
+    - **Instructions**: "You are a compliance auditor. Identify specific red flags..."
+    - **Tools**: File search + Code interpreter (for data analysis)
+    - **Vector Store**: Linked to shared storage
+    - **Max Tokens**: Higher limit for detailed reports
+  </Tab>
+
+  <Tab title="Detection Areas">
+    **What the Report Assistant Looks For:**
+    
+    <Accordion title="Licensing Issues">
+      - Missing financial service licenses
+      - Expired registrations
+      - Operating in unlicensed jurisdictions
+    </Accordion>
+
+    <Accordion title="AML/KYC Gaps">
+      - Inadequate customer verification
+      - Missing transaction monitoring
+      - Suspicious activity reporting gaps
+    </Accordion>
+
+    <Accordion title="Disclosure Problems">
+      - Missing risk disclosures
+      - Inadequate terms of service
+      - Privacy policy violations
+    </Accordion>
+
+    <Accordion title="Operational Risks">
+      - Insufficient cybersecurity measures
+      - Weak internal controls
+      - Inadequate compliance programs
+    </Accordion>
+  </Tab>
+</Tabs>
+
+## Resource Assistant
+
+Discoverers relevant regulatory documents and references:
+
+<Tabs>
+  <Tab title="Purpose">
+    **Objective:** Compile list of applicable regulations and documents
+
+    **Prompt Template:**
+    ```python
+    resource_prompt = f"List the relevant financial regulatory documents for the company: {company_name}"
+    ```
+
+    **Expected Output:**
+    - Regulation names and numbers
+    - Issuing authorities
+    - Document URLs (when available)
+    - Jurisdictional scope
+  </Tab>
+
+  <Tab title="Configuration">
+    **Recommended Assistant Settings:**
+    
+    - **Model**: GPT-4 Turbo (fast, cost-effective)
+    - **Temperature**: 0.1 (highly factual)
+    - **Instructions**: "You are a regulatory research specialist. List relevant documents..."
+    - **Tools**: File search + Web browsing (if enabled)
+    - **Vector Store**: Linked to shared storage
+  </Tab>
+
+  <Tab title="Document Types">
+    **Categories of Resources Identified:**
+    
+    - Federal regulations (SEC, FinCEN, OCC)
+    - State-level requirements
+    - International standards (FATF, Basel)
+    - Industry guidelines (FINRA, NACHA)
+    - Court decisions and precedents
+    - Agency guidance documents
+  </Tab>
+</Tabs>
+
+## Execution Loop
+
+All three assistants are executed systematically:
+
+```python
+# Start AI assistants
+results = {}
+for key in assistants_.keys():
+    results[key] = run_assistant(
+        prompt=prompts_[key],
+        assistant_id=assistants_[key]
+    )
+```
+
+<Info>
+  **Source location:** ripple_challange.py:176-181
+</Info>
+
+<Accordion title="Optimization Opportunity">
+  **Current Implementation:** Sequential execution
+  
+  **Performance Enhancement:**
+  ```python
+  import concurrent.futures
+
+  def run_assistants_parallel():
+      results = {}
+      with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+          future_to_key = {
+              executor.submit(run_assistant, prompts_[key], assistants_[key]): key
+              for key in assistants_.keys()
+          }
+          for future in concurrent.futures.as_completed(future_to_key):
+              key = future_to_key[future]
+              results[key] = future.result()
+      return results
+  ```
+  
+  This could reduce total execution time by ~3x.
+</Accordion>
+
+## Vector Storage Integration
+
+All assistants share access to the same vector storage containing crawled website content:
+
+```python
+# From crawl_util.py
+vector_store_file = self.client.beta.vector_stores.files.create(
+    vector_store_id=self.vector_storage_id, file_id=file_.id
+)
+```
+
+<Tabs>
+  <Tab title="How It Works">
+    **Vector Storage Flow:**
+    
+    1. Website content is crawled and saved as text file
+    2. File is uploaded to OpenAI with purpose="assistants"
+    3. File is added to shared vector store
+    4. All three assistants query this vector store
+    5. Semantic search returns relevant passages
+  </Tab>
+
+  <Tab title="Query Process">
+    **Behind the Scenes:**
+    
+    When an assistant receives a prompt:
+    1. OpenAI embeds the prompt as a vector
+    2. Performs similarity search in vector store
+    3. Retrieves top-k relevant text chunks
+    4. Includes chunks in assistant's context
+    5. Generates response based on retrieved content
+    
+    This enables assistants to cite specific evidence from company websites.
+  </Tab>
+
+  <Tab title="Caching Strategy">
+    ```python
+    # Check Redis cache before crawling
+    if file_id := self.r.get(url):
+        self.r.zadd("vs_files", {file_id: int(time.time())})
+        return
+    ```
+    
+    **Benefits:**
+    - Avoid re-crawling recently analyzed sites
+    - Reduce OpenAI API costs
+    - Faster response times
+    - Track file usage patterns
+  </Tab>
+</Tabs>
+
+## Event Handling
+
+The streaming implementation handles multiple event types:
+
+<Accordion title="Stream Event Types">
+  ```python
+  from openai.types.beta.assistant_stream_event import (
+      ThreadMessageCompleted, 
+      ThreadRunFailed
+  )
+
+  for event in run:
+      if isinstance(event, ThreadMessageCompleted):
+          result_text = event.data.content[0].text.value
+      if isinstance(event, ThreadRunFailed):
+          print(event)
+          break
+  ```
+
+  **Event Categories:**
+  
+  - **ThreadCreated**: Thread initialized
+  - **ThreadRunCreated**: Run started
+  - **ThreadRunQueued**: Waiting in queue
+  - **ThreadRunInProgress**: Currently processing
+  - **ThreadMessageCreated**: Response generation started
+  - **ThreadMessageInProgress**: Response being generated
+  - **ThreadMessageCompleted**: ✅ Success - response ready
+  - **ThreadRunFailed**: ❌ Error occurred
+  - **ThreadRunCompleted**: Run finished successfully
+</Accordion>
+
+## Error Handling Best Practices
+
+<Tabs>
+  <Tab title="Current Implementation">
+    ```python
+    if isinstance(event, ThreadRunFailed):
+        print(event)
+        break
+    return result_text  # May be empty string on failure
+    ```
+  </Tab>
+
+  <Tab title="Enhanced Error Handling">
+    ```python
+    def run_assistant_robust(prompt, assistant_id):
+        try:
+            thread = client.beta.threads.create(
+                messages=[{"role": "user", "content": [{"type": "text", "text": prompt}]}]
+            )
+            run = client.beta.threads.runs.create(
+                thread_id=thread.id, assistant_id=assistant_id, stream=True
+            )
+            
+            result_text = ""
+            for event in run:
+                if isinstance(event, ThreadMessageCompleted):
+                    result_text = event.data.content[0].text.value
+                if isinstance(event, ThreadRunFailed):
+                    error_msg = event.data.last_error.message if event.data.last_error else "Unknown error"
+                    raise Exception(f"Assistant run failed: {error_msg}")
+            
+            if not result_text:
+                raise Exception("No response generated")
+            
+            return result_text
+            
+        except Exception as e:
+            st.error(f"Assistant error: {str(e)}")
+            return f"Error: Unable to generate {assistant_id} analysis"
+    ```
+  </Tab>
+
+  <Tab title="Retry Logic">
+    ```python
+    from tenacity import retry, stop_after_attempt, wait_exponential
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
+    def run_assistant_with_retry(prompt, assistant_id):
+        return run_assistant(prompt, assistant_id)
+    ```
+  </Tab>
+</Tabs>
+
+## Assistant Configuration Best Practices
+
+<Note>
+  **When Creating Assistants in OpenAI Console:**
+  
+  1. **Name clearly**: "XRP Risk - Summary Assistant"
+  2. **Detailed instructions**: Provide context about the domain
+  3. **Enable file search**: Required for vector storage access
+  4. **Link vector store**: Attach the shared storage ID
+  5. **Set temperature**: Lower for factual, higher for creative
+  6. **Save assistant ID**: Store in secrets management
+</Note>
+
+## Performance Metrics
+
+<CardGroup cols={3}>
+  <Card title="Average Execution" icon="clock">
+    5-15 seconds per assistant
+  </Card>
+  <Card title="Token Usage" icon="coins">
+    500-2000 tokens per response
+  </Card>
+  <Card title="Vector Queries" icon="database">
+    3-10 chunks retrieved per prompt
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Risk Assessment" icon="chart-line" href="/features/risk-assessment">
+    See how assistants fit into the overall workflow
+  </Card>
+  <Card title="XRP Transactions" icon="coins" href="/features/xrp-transactions">
+    Learn about transaction execution after analysis
+  </Card>
+</CardGroup>

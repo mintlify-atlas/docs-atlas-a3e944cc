@@ -1,0 +1,386 @@
+---
+title: Configuration
+description: Configure OpenAI API keys, vector storage, AI assistants, XRP wallet credentials, and Streamlit settings
+---
+
+The XRP Transaction Risk AI platform requires several configuration values to operate. This guide covers all necessary setup steps.
+
+## Configuration overview
+
+The application uses Streamlit's secrets management system to store sensitive credentials. All configuration values are loaded from `st.secrets`.
+
+<Info>
+  Configuration values are stored in `.streamlit/secrets.toml` (local development) or Streamlit Cloud's secrets manager (production).
+</Info>
+
+## Required secrets
+
+Create a `.streamlit/secrets.toml` file in your project directory with the following structure:
+
+```toml
+# OpenAI Configuration
+OPENAI_API_KEY = "sk-..."
+VECTOR_STORAGE_ID = "vs_..."
+ASSISTANT_ID = "asst_..."        # Report assistant
+SUMMARY_ASSISTANT = "asst_..."    # Summary assistant
+RESOURCE_ASSISTANT = "asst_..."   # Resource assistant
+
+# XRP Testnet Wallet
+TEST_WALLET_ADDRESS = "rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+TEST_WALLET_SECRET = "sXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+```
+
+<Warning>
+  Never commit `secrets.toml` to version control. Add it to your `.gitignore` file immediately.
+</Warning>
+
+## OpenAI configuration
+
+### API key
+
+Obtain your OpenAI API key from the [OpenAI Platform](https://platform.openai.com/api-keys):
+
+<Steps>
+  <Step title="Create API key">
+    1. Log in to platform.openai.com
+    2. Navigate to API keys section
+    3. Click "Create new secret key"
+    4. Copy the key immediately (it won't be shown again)
+  </Step>
+
+  <Step title="Add to secrets">
+    ```toml
+    OPENAI_API_KEY = "sk-proj-..."
+    ```
+  </Step>
+
+  <Step title="Verify in code">
+    The key is loaded in `ripple_challange.py:73`:
+    
+    ```python
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    ```
+  </Step>
+</Steps>
+
+### Vector storage setup
+
+Create a vector storage instance to hold crawled website content:
+
+```python
+import openai
+
+client = openai.OpenAI(api_key="sk-...")
+
+# Create vector storage
+vector_store = client.beta.vector_stores.create(
+    name="XRP Risk AI - Regulatory Data"
+)
+
+print(f"Vector Storage ID: {vector_store.id}")
+```
+
+Add the ID to your secrets:
+
+```toml
+VECTOR_STORAGE_ID = "vs_abc123xyz"
+```
+
+### AI assistant configuration
+
+Create three separate OpenAI assistants with access to your vector storage:
+
+<Tabs>
+  <Tab title="Report assistant">
+    ```python
+    assistant = client.beta.assistants.create(
+        name="Compliance Report Generator",
+        instructions="You are a financial compliance expert. Analyze company data and identify potential regulatory red flags that could affect business compliance. Focus on licensing, AML/KYC, consumer protection, and cross-border regulations.",
+        model="gpt-4-turbo-preview",
+        tools=[{"type": "file_search"}],
+        tool_resources={
+            "file_search": {
+                "vector_store_ids": ["vs_abc123xyz"]
+            }
+        }
+    )
+    
+    print(f"Report Assistant ID: {assistant.id}")
+    ```
+    
+    Add to secrets as `ASSISTANT_ID`
+  </Tab>
+
+  <Tab title="Summary assistant">
+    ```python
+    assistant = client.beta.assistants.create(
+        name="Regulatory Summary Generator",
+        instructions="You are a regulatory compliance advisor. Provide concise summaries of financial regulations relevant to companies. Focus on jurisdiction-specific requirements, licensing needs, and key regulatory frameworks.",
+        model="gpt-4-turbo-preview",
+        tools=[{"type": "file_search"}],
+        tool_resources={
+            "file_search": {
+                "vector_store_ids": ["vs_abc123xyz"]
+            }
+        }
+    )
+    
+    print(f"Summary Assistant ID: {assistant.id}")
+    ```
+    
+    Add to secrets as `SUMMARY_ASSISTANT`
+  </Tab>
+
+  <Tab title="Resource assistant">
+    ```python
+    assistant = client.beta.assistants.create(
+        name="Regulatory Resource Compiler",
+        instructions="You are a regulatory documentation specialist. List relevant financial regulatory documents, laws, standards, and frameworks applicable to companies. Include specific document names, URLs when available, and brief descriptions.",
+        model="gpt-4-turbo-preview",
+        tools=[{"type": "file_search"}],
+        tool_resources={
+            "file_search": {
+                "vector_store_ids": ["vs_abc123xyz"]
+            }
+        }
+    )
+    
+    print(f"Resource Assistant ID: {assistant.id}")
+    ```
+    
+    Add to secrets as `RESOURCE_ASSISTANT`
+  </Tab>
+</Tabs>
+
+<Info>
+  All three assistants use the same vector storage ID but have different instructions optimized for their specific tasks.
+</Info>
+
+## XRP testnet wallet
+
+The application sends XRP transactions from a testnet wallet. Configure credentials:
+
+<Steps>
+  <Step title="Get testnet credentials">
+    Visit the [XRP Testnet Faucet](https://faucet.altnet.rippletest.net/) to generate a testnet wallet:
+    
+    1. Click "Generate credentials"
+    2. Save the **Address** and **Secret** immediately
+    3. The faucet will fund your wallet with test XRP
+  </Step>
+
+  <Step title="Add to secrets">
+    ```toml
+    TEST_WALLET_ADDRESS = "rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    TEST_WALLET_SECRET = "sXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    ```
+  </Step>
+
+  <Step title="Verify in code">
+    Credentials are loaded in `ripple_challange.py:12-13`:
+    
+    ```python
+    test_wallet_address = st.secrets["TEST_WALLET_ADDRESS"]
+    test_wallet_secret = st.secrets["TEST_WALLET_SECRET"]
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  **IMPORTANT**: Use testnet credentials ONLY. Never configure mainnet wallet secrets in the application. The code connects to `s.altnet.rippletest.net:51234` which is a testnet endpoint.
+</Warning>
+
+## Streamlit configuration
+
+The `.streamlit/config.toml` file controls Streamlit-specific settings:
+
+```toml
+[client]
+showErrorDetails = false
+
+[theme]
+primaryColor = "#36454f"
+backgroundColor = "white"
+
+[browser]
+gatherUsageStats = true
+
+[server]
+port = 80
+```
+
+### Theme customization
+
+<AccordionGroup>
+  <Accordion title="Primary color">
+    The `primaryColor` (#36454f - charcoal gray) is used for:
+    - Buttons and interactive elements
+    - Progress bars
+    - Form inputs focus state
+    - Sidebar highlights
+  </Accordion>
+
+  <Accordion title="Background color">
+    Set to `white` for a clean, professional appearance matching the compliance/regulatory theme.
+  </Accordion>
+
+  <Accordion title="Error details">
+    `showErrorDetails = false` hides technical stack traces from end users. Set to `true` during development for debugging.
+  </Accordion>
+
+  <Accordion title="Server port">
+    Port 80 is configured for production deployment. For local development, Streamlit typically uses port 8501.
+  </Accordion>
+</AccordionGroup>
+
+## Redis configuration
+
+The web crawler uses Redis for caching. Default configuration:
+
+```python
+r = Redis(host='localhost', port=6379, db=0)
+```
+
+### Customize Redis connection
+
+If Redis is not running on localhost, modify `crawl_util.py:11`:
+
+```python
+# For remote Redis
+r = Redis(host='redis.example.com', port=6379, password='...', db=0)
+
+# For Redis with authentication
+r = Redis(host='localhost', port=6379, password=st.secrets["REDIS_PASSWORD"], db=0)
+
+# For Unix socket
+r = Redis(unix_socket_path='/var/run/redis/redis.sock', db=0)
+```
+
+<Tip>
+  For production deployments, use a managed Redis service (AWS ElastiCache, Redis Cloud, etc.) and configure connection via environment variables.
+</Tip>
+
+## Environment variables
+
+For deployment platforms that don't use `secrets.toml`, set these environment variables:
+
+| Variable | Description | Example |
+|----------|-------------|----------|
+| `OPENAI_API_KEY` | OpenAI API key | `sk-proj-...` |
+| `VECTOR_STORAGE_ID` | Vector storage ID | `vs_...` |
+| `ASSISTANT_ID` | Report assistant ID | `asst_...` |
+| `SUMMARY_ASSISTANT` | Summary assistant ID | `asst_...` |
+| `RESOURCE_ASSISTANT` | Resource assistant ID | `asst_...` |
+| `TEST_WALLET_ADDRESS` | XRP testnet address | `rXXX...` |
+| `TEST_WALLET_SECRET` | XRP testnet secret | `sXXX...` |
+
+Streamlit automatically loads environment variables and makes them available in `st.secrets`.
+
+## Validation
+
+Verify your configuration is correct:
+
+```python
+import streamlit as st
+from openai import OpenAI
+
+# Check all secrets are loaded
+required_secrets = [
+    "OPENAI_API_KEY",
+    "VECTOR_STORAGE_ID",
+    "ASSISTANT_ID",
+    "SUMMARY_ASSISTANT",
+    "RESOURCE_ASSISTANT",
+    "TEST_WALLET_ADDRESS",
+    "TEST_WALLET_SECRET"
+]
+
+for secret in required_secrets:
+    try:
+        value = st.secrets[secret]
+        print(f"✓ {secret}: {value[:10]}...")
+    except KeyError:
+        print(f"✗ {secret}: MISSING")
+
+# Test OpenAI connection
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+vector_stores = client.beta.vector_stores.list()
+print(f"✓ OpenAI connection successful")
+
+# Test Redis connection
+from redis import Redis
+r = Redis(host='localhost', port=6379, db=0)
+r.ping()
+print(f"✓ Redis connection successful")
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="KeyError: 'OPENAI_API_KEY'">
+    **Cause**: Secret not found in `secrets.toml`
+    
+    **Solution**: 
+    1. Verify `.streamlit/secrets.toml` exists in project root
+    2. Check the exact key name matches (case-sensitive)
+    3. Restart Streamlit after editing secrets file
+  </Accordion>
+
+  <Accordion title="openai.AuthenticationError">
+    **Cause**: Invalid OpenAI API key
+    
+    **Solution**:
+    1. Verify the API key is active on platform.openai.com
+    2. Check for extra spaces or newlines in the key
+    3. Regenerate the key if it was revoked
+  </Accordion>
+
+  <Accordion title="Vector store not found">
+    **Cause**: Invalid `VECTOR_STORAGE_ID`
+    
+    **Solution**:
+    1. Verify the vector store exists: `client.beta.vector_stores.retrieve(vector_storage_id)`
+    2. Ensure the API key has access to the vector store
+    3. Create a new vector store if needed
+  </Accordion>
+
+  <Accordion title="Redis connection refused">
+    **Cause**: Redis not running
+    
+    **Solution**:
+    ```bash
+    # Start Redis
+    redis-server
+    
+    # Or with Homebrew on macOS
+    brew services start redis
+    ```
+  </Accordion>
+
+  <Accordion title="XRP testnet connection failed">
+    **Cause**: Invalid testnet credentials or network issues
+    
+    **Solution**:
+    1. Verify credentials from testnet faucet
+    2. Check wallet has test XRP balance
+    3. Test connection to `https://s.altnet.rippletest.net:51234/`
+  </Accordion>
+</AccordionGroup>
+
+## Security best practices
+
+<Warning>
+  **Follow these security guidelines:**
+  
+  1. Never commit `secrets.toml` to version control
+  2. Use testnet credentials only - never mainnet wallets
+  3. Rotate API keys periodically
+  4. Restrict OpenAI API key permissions if possible
+  5. Use environment variables in production
+  6. Enable Redis authentication in production
+  7. Monitor API usage and set spending limits
+</Warning>
+
+<Tip>
+  For team environments, use a secrets management service (AWS Secrets Manager, HashiCorp Vault, etc.) instead of committing secrets to shared locations.
+</Tip>

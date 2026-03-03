@@ -1,0 +1,204 @@
+---
+title: get_xrp_info
+description: Retrieve account information for an XRP Ledger address using the xrpscan.com API
+---
+
+## Function Signature
+
+```python
+get_xrp_info(address)
+```
+
+Retrieves comprehensive account information for a given XRP Ledger address using the xrpscan.com API. This function fetches verification status, domain information, social media links, and balance details.
+
+## Parameters
+
+<ParamField path="address" type="string" required>
+  The XRP Ledger address to query. Must be a valid XRP address format (e.g., "rMdG3ju8pgyVh29ELPWaDuA74CpWW6Fxns").
+</ParamField>
+
+## Return Values
+
+The function returns a tuple of five values:
+
+<ResponseField name="verified" type="boolean | None">
+  Indicates whether the account has been verified. Returns `None` if the account has no `accountName` data or if an error occurs.
+</ResponseField>
+
+<ResponseField name="domain" type="string | None">
+  The domain associated with the account (if any). Returns `None` if not available or if an error occurs.
+</ResponseField>
+
+<ResponseField name="twitter" type="string | None">
+  The Twitter handle associated with the account (if any). Returns `None` if not available or if an error occurs.
+</ResponseField>
+
+<ResponseField name="balance" type="string | None">
+  The current XRP balance of the account. Returns `None` if not available or if an error occurs.
+</ResponseField>
+
+<ResponseField name="initial_balance" type="string | None">
+  The initial balance when the account was created. Returns `None` if not available or if an error occurs.
+</ResponseField>
+
+## XRP API Endpoints Used
+
+### xrpscan.com API
+```
+https://api.xrpscan.com/api/v1/account/{address}
+```
+
+This endpoint provides detailed account information including:
+- Account verification status
+- Associated domain names
+- Social media links
+- Balance information
+- Transaction history metadata
+
+## Code Example
+
+```python
+import requests
+import streamlit as st
+
+def get_xrp_info(address):
+    url = f"https://api.xrpscan.com/api/v1/account/{address}"
+    
+    response = requests.get(url)
+    if response.status_code == 200:
+        account_info = response.json()
+        st.write(account_info)
+        if 'accountName' not in account_info or account_info['accountName'] is None:
+            return None, None, None, None, None  # No accountName, return early
+        
+        domain = account_info['accountName'].get('domain', None)
+        verified = account_info.get('accountName', {}).get('verified', False)
+        twitter = account_info['accountName'].get('twitter', None)
+        balance = account_info.get('xrpBalance', None)
+        initial_balance = account_info.get('initial_balance', None)
+        return verified, domain, twitter, balance, initial_balance
+    else:
+        st.error(f"Error fetching data: {response.status_code}")
+        return None, None, None, None, None
+```
+
+## Usage Example
+
+```python
+# Retrieve account information
+wallet_address = "rMdG3ju8pgyVh29ELPWaDuA74CpWW6Fxns"
+verified, domain, twitter, balance, initial_balance = get_xrp_info(wallet_address)
+
+if not domain:
+    print("No account information available")
+elif not twitter or not balance or not initial_balance:
+    print("Insufficient information available for this address")
+else:
+    print(f"Domain: {domain}")
+    print(f"Verified: {verified}")
+    print(f"Twitter: {twitter}")
+    print(f"Balance: {balance} XRP")
+    print(f"Initial Balance: {initial_balance} XRP")
+```
+
+## Request/Response Example
+
+### API Request
+```bash
+GET https://api.xrpscan.com/api/v1/account/rMdG3ju8pgyVh29ELPWaDuA74CpWW6Fxns
+```
+
+### API Response
+```json
+{
+  "account": "rMdG3ju8pgyVh29ELPWaDuA74CpWW6Fxns",
+  "accountName": {
+    "domain": "example.com",
+    "verified": true,
+    "twitter": "@examplecompany"
+  },
+  "xrpBalance": "1000.50",
+  "initial_balance": "20",
+  "accountIndex": 12345,
+  "parent": null,
+  "sequence": 5,
+  "txCount": 10,
+  "inception": "2021-01-15T10:30:00Z"
+}
+```
+
+### Function Return Values
+```python
+# Successful call with full data
+verified = True
+domain = "example.com"
+twitter = "@examplecompany"
+balance = "1000.50"
+initial_balance = "20"
+
+# Call with missing accountName
+verified = None
+domain = None
+twitter = None
+balance = None
+initial_balance = None
+```
+
+## Error Handling
+
+The function implements the following error handling patterns:
+
+### HTTP Error Handling
+```python
+if response.status_code == 200:
+    # Process successful response
+    account_info = response.json()
+else:
+    # Display error to user
+    st.error(f"Error fetching data: {response.status_code}")
+    return None, None, None, None, None
+```
+
+### Missing Data Handling
+```python
+# Check for missing accountName
+if 'accountName' not in account_info or account_info['accountName'] is None:
+    return None, None, None, None, None
+
+# Safe access with .get() to handle missing fields
+domain = account_info['accountName'].get('domain', None)
+verified = account_info.get('accountName', {}).get('verified', False)
+```
+
+## Common Error Scenarios
+
+1. **Invalid Address (404)**: The address doesn't exist on the XRP Ledger
+2. **No Account Name**: The account exists but has no associated domain or verification data
+3. **Partial Data**: Some fields may be missing (e.g., no Twitter handle)
+4. **API Rate Limiting**: xrpscan.com may rate limit requests
+5. **Network Errors**: Connection issues to the xrpscan.com API
+
+## Integration Pattern
+
+In the application workflow, this function is used to:
+
+1. Validate destination addresses before sending XRP
+2. Retrieve business information (domain) for risk assessment
+3. Verify account legitimacy through verification status
+4. Check account activity through balance information
+
+```python
+# Application usage pattern
+with st.spinner('Fetching account information...'):
+    verified, domain, twitter, balance, initial_balance = get_xrp_info(wallet_address)
+    
+    if not domain:
+        st.error("No info")
+        return
+    
+    if not twitter or not balance or not initial_balance:
+        st.error("There is no sufficient information available for this address.")
+        return
+    
+    st.success('Account information retrieved successfully!')
+```

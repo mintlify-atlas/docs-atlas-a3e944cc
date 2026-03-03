@@ -1,0 +1,359 @@
+---
+title: Web crawling
+description: Learn how the system crawls business websites to gather intelligence for AI-powered compliance analysis
+---
+
+The XRP Transaction Risk AI platform uses automated web crawling to gather business information from domains associated with wallet addresses. This intelligence feeds into the AI compliance analysis.
+
+## How web crawling works
+
+The `CrawlUtil` class implements a breadth-first crawling algorithm that systematically explores websites:
+
+```python
+web_crawler = CrawlUtil(
+    client=client,
+    vector_storage_id=vector_storage_id,
+    progress_text="Operation in progress. Please wait."
+)
+
+web_crawler.website_crawler(f"https://{domain}", my_bar=my_bar)
+```
+
+## Crawling workflow
+
+<Steps>
+  <Step title="Domain extraction">
+    After wallet verification succeeds, the domain is extracted from the XRPScan account data:
+    
+    ```python
+    verified, domain, twitter, balance, initial_balance = get_xrp_info(wallet_address)
+    ```
+  </Step>
+
+  <Step title="Cache check">
+    The system checks Redis cache to avoid re-crawling recently visited sites:
+    
+    ```python
+    if file_id := self.r.get(url):
+        self.r.zadd("vs_files", {file_id: int(time.time())})
+        return  # Use cached version
+    ```
+  </Step>
+
+  <Step title="Breadth-first crawl">
+    The crawler visits the homepage and discovers all internal links:
+    
+    ```python
+    def crawl_website(self, base_url, my_bar):
+        visited = set()
+        to_visit = [base_url]
+        all_pages_content = []
+        
+        while to_visit:
+            current_url = to_visit.pop(0)
+            if current_url not in visited:
+                html_content = self.fetch_html(current_url)
+                if html_content:
+                    all_pages_content.append((current_url, html_content))
+                    links = self.parse_html_for_links(base_url, html_content)
+                    to_visit.extend(links - visited)
+                visited.add(current_url)
+    ```
+  </Step>
+
+  <Step title="Content extraction">
+    HTML content is parsed using BeautifulSoup:
+    
+    ```python
+    soup = BeautifulSoup(content, 'html.parser')
+    all_data += soup.prettify()
+    ```
+  </Step>
+
+  <Step title="File creation and upload">
+    The aggregated content is saved to a text file and uploaded to OpenAI:
+    
+    ```python
+    file_name = urlparse(base_url).netloc + ".txt"
+    with open('data/' + file_name, "w") as text_file:
+        text_file.write(data)
+    
+    file_ = self.client.files.create(
+        file=open('data/' + file_name, "rb"),
+        purpose="assistants"
+    )
+    ```
+  </Step>
+
+  <Step title="Vector storage">
+    The file is added to OpenAI's vector storage for semantic search:
+    
+    ```python
+    vector_store_file = self.client.beta.vector_stores.files.create(
+        vector_store_id=self.vector_storage_id,
+        file_id=file_.id
+    )
+    ```
+  </Step>
+</Steps>
+
+## Link discovery algorithm
+
+The crawler intelligently discovers and filters links:
+
+```python
+def parse_html_for_links(self, base_url, html_content):
+    soup = BeautifulSoup(html_content, 'html.parser')
+    links = set()
+    
+    for a_tag in soup.find_all('a', href=True):
+        href = a_tag['href']
+        
+        # Handle relative URLs
+        if href.startswith('/'):
+            href = urljoin(base_url, href)
+        elif not urlparse(href).netloc:
+            href = urljoin(base_url, href)
+        
+        # Only keep internal links
+        if base_url in href:
+            links.add(href)
+    
+    return links
+```
+
+### Link filtering rules
+
+<Tabs>
+  <Tab title="Included links">
+    - Same domain as base URL
+    - Internal relative paths (`/about`, `/products`)
+    - Subpages and subdirectories
+    - HTTP and HTTPS variants of same domain
+  </Tab>
+
+  <Tab title="Excluded links">
+    - External domains
+    - Social media links
+    - Email addresses (`mailto:`)
+    - JavaScript links (`javascript:`)
+    - Anchor links (same page)
+    - File downloads (PDF, ZIP, etc.)
+  </Tab>
+</Tabs>
+
+## Progress tracking
+
+The crawler provides real-time progress updates in the Streamlit UI:
+
+```python
+my_bar = st.progress(0, text=progress_text)
+
+# Calculate progress per link
+if current_url == base_url:
+    to_links = set(links)
+    if to_links:
+        progress_each = 1 / len(to_links)
+
+# Update progress bar
+progress_total += progress_each
+if progress_total <= 1.0:
+    my_bar.progress(progress_total, text=self.progress_text)
+else:
+    my_bar.progress(1.0, text=self.progress_text)
+```
+
+<Info>
+  Progress is calculated based on the number of links discovered on the homepage. Each link represents one unit of progress.
+</Info>
+
+## Caching strategy
+
+The crawler uses Redis to cache crawled content and avoid redundant work:
+
+### Cache structure
+
+```python
+r = Redis(host='localhost', port=6379, db=0)
+
+# Map URL to file ID
+self.r.set(url, file_.id)
+
+# Map file ID to URL (reverse lookup)
+self.r.set(file_.id, url)
+
+# Track file timestamps in sorted set
+self.r.zadd("vs_files", {vector_store_file.id: int(vector_store_file.created_at)})
+```
+
+### Benefits of caching
+
+- **Faster assessments**: Instant retrieval for previously crawled domains
+- **Reduced API calls**: Fewer requests to OpenAI file upload API
+- **Cost savings**: Avoid re-uploading duplicate content
+- **Rate limit protection**: Prevents hitting API throttles
+
+<Tip>
+  Cache entries are timestamped using a sorted set (`vs_files`), allowing for cache expiration policies based on age.
+</Tip>
+
+## Company name extraction
+
+The crawler extracts a clean company name from the domain:
+
+```python
+company_name = web_crawler.extract_company_from_url(f"https://{domain}")
+
+@staticmethod
+def extract_company_from_url(url):
+    parsed_url = urlparse(
+        url if url.startswith(('http://', 'https://')) else 'http://' + url
+    )
+    hostname = parsed_url.hostname or url
+    parts = hostname.split('.')
+    
+    # Handle different TLD structures
+    if len(parts) > 2:
+        if parts[-2] in ['co', 'com', 'net', 'org', 'gov']:
+            domain = parts[-3]  # For co.uk, com.au, etc.
+        else:
+            domain = parts[-2]  # For regular subdomains
+    else:
+        domain = parts[0]  # For simple domains
+    
+    return domain
+```
+
+### Examples
+
+| Input URL | Extracted Name |
+|-----------|----------------|
+| `https://example.com` | `example` |
+| `https://www.example.com` | `example` |
+| `https://example.co.uk` | `example` |
+| `https://app.example.com` | `example` |
+| `https://example.com.au` | `example` |
+
+## Integration with AI assistants
+
+The crawled content is used by all three AI assistants:
+
+```python
+company_name = web_crawler.extract_company_from_url(f"https://{domain}")
+
+# Summary prompt
+summary_prompt = f"Provide a brief summary of the financial regulations relevant to the company: {company_name}"
+
+# Report prompt
+report_prompt = f"Identify any financial compliance red flags in the company data: {company_name} that might affect their business compliance."
+
+# Resource prompt
+resource_prompt = f"List the relevant financial regulatory documents for the company: {company_name}"
+```
+
+The assistants use the vector storage to perform semantic search over the crawled content, finding relevant information about:
+
+- Business operations and services
+- Regulatory disclosures
+- Licensing information
+- Terms of service and policies
+- Company structure and jurisdiction
+
+## Error handling
+
+The crawler gracefully handles various error conditions:
+
+<AccordionGroup>
+  <Accordion title="HTTP errors">
+    ```python
+    def fetch_html(self, url):
+        try:
+            res = requests.get(url)
+            if res.status_code == 200:
+                return res.text
+            else:
+                return None
+        except requests.RequestException as e:
+            print(f"Request failed: {e}")
+            return None
+    ```
+    
+    Failed requests return `None` and the crawler continues with other pages.
+  </Accordion>
+
+  <Accordion title="Missing domain">
+    If the wallet verification doesn't return a domain:
+    
+    ```python
+    if not domain:
+        st.error("No info")
+        return
+    ```
+    
+    The crawling step is skipped entirely.
+  </Accordion>
+
+  <Accordion title="Empty website">
+    If the homepage has no internal links:
+    
+    ```python
+    if to_links:
+        progress_each = 1 / len(to_links)
+    else:
+        progress_each = 0.01  # Small value for single-page sites
+    ```
+    
+    Progress still completes successfully.
+  </Accordion>
+</AccordionGroup>
+
+## Performance considerations
+
+### Crawl depth limitation
+
+The crawler only visits links discovered on the homepage:
+
+```python
+while to_visit:
+    current_url = to_visit.pop(0)
+    if current_url not in to_links and current_url != base_url:
+        break  # Stop after homepage links are processed
+```
+
+This prevents excessive crawling while capturing the most important pages (About, Services, Contact, etc.).
+
+### Why limit depth?
+
+- **Speed**: Faster assessments (typically completes in under 30 seconds)
+- **Relevance**: Homepage links usually point to key business information
+- **Cost**: Fewer pages = smaller files = lower OpenAI API costs
+- **Politeness**: Reduces server load on target websites
+
+<Warning>
+  The crawler respects the one-level depth limit. It will not recursively follow links beyond what's directly linked from the homepage.
+</Warning>
+
+## Best practices
+
+<Tip>
+  **For optimal crawling results:**
+  - Ensure Redis is running before starting assessments
+  - Use domains with well-structured navigation
+  - Verify the domain is accessible publicly (not behind auth)
+  - Allow 15-30 seconds for crawling to complete
+  - Check the progress bar for crawl status
+</Tip>
+
+## Dependencies
+
+The web crawler requires these Python packages:
+
+```python
+import requests          # HTTP client
+from bs4 import BeautifulSoup  # HTML parsing
+from urllib.parse import urljoin, urlparse  # URL handling
+from redis import Redis  # Caching
+from openai import OpenAI  # File upload and vector storage
+```
+
+All dependencies are installed during [installation](/installation).

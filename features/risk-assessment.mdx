@@ -1,0 +1,277 @@
+---
+title: "AI-Powered Risk Assessment"
+description: "Learn how the XRP Transaction Risk AI uses OpenAI assistants and web crawling to assess regulatory risks for XRP wallet transactions"
+---
+
+# AI-Powered Risk Assessment
+
+The XRP Transaction Risk AI platform provides intelligent risk assessment by analyzing business information associated with XRP wallet addresses and evaluating potential regulatory compliance issues.
+
+## Overview
+
+The risk assessment workflow combines multiple AI assistants with real-time web crawling to provide comprehensive regulatory risk analysis:
+
+1. **Wallet Information Retrieval** - Fetch account data from XRP Ledger
+2. **Business Intelligence Gathering** - Crawl associated company websites
+3. **AI-Powered Analysis** - Process data through specialized OpenAI assistants
+4. **Risk Reporting** - Generate summary, detailed report, and resources
+
+## Complete Workflow
+
+<Tabs>
+  <Tab title="Step 1: Account Lookup">
+    The system starts by retrieving wallet information from the XRPScan API:
+
+    ```python
+    def get_xrp_info(address):
+        url = f"https://api.xrpscan.com/api/v1/account/{address}"
+        
+        response = requests.get(url)
+        if response.status_code == 200:
+            account_info = response.json()
+            if 'accountName' not in account_info or account_info['accountName'] is None:
+                return None, None, None, None, None
+            
+            domain = account_info['accountName'].get('domain', None)
+            verified = account_info.get('accountName', {}).get('verified', False)
+            twitter = account_info['accountName'].get('twitter', None)
+            balance = account_info.get('xrpBalance', None)
+            initial_balance = account_info.get('initial_balance', None)
+            return verified, domain, twitter, balance, initial_balance
+    ```
+
+    **Retrieved Information:**
+    - Domain name (for business lookup)
+    - Verification status
+    - Social media presence (Twitter)
+    - Current XRP balance
+    - Initial account balance
+  </Tab>
+
+  <Tab title="Step 2: Web Crawling">
+    Once the domain is identified, the system crawls the associated website:
+
+    ```python
+    # Initialize the web crawler
+    web_crawler = CrawlUtil(
+        client=client, 
+        vector_storage_id=vector_storage_id, 
+        progress_text=progress_text
+    )
+
+    # Crawl the business website
+    web_crawler.website_crawler(f"https://{domain}", my_bar=my_bar)
+    company_name = web_crawler.extract_company_from_url(f"https://{domain}")
+    ```
+
+    The crawler:
+    - Fetches HTML content from all linked pages
+    - Extracts text and structure
+    - Uploads data to OpenAI vector storage
+    - Caches results in Redis for performance
+  </Tab>
+
+  <Tab title="Step 3: AI Analysis">
+    Three specialized AI assistants analyze the collected data:
+
+    ```python
+    assistants_ = {
+        'resource': resource_assistant_id,
+        'report': report_assistant_id,
+        'summary': summary_assistant_id,
+    }
+    prompts_ = {
+        'resource': f"List the relevant financial regulatory documents for the company: {company_name}",
+        'report': f"Identify any financial compliance red flags in the company data: {company_name} that might affect their business compliance.",
+        'summary': f"Provide a brief summary of the financial regulations relevant to the company: {company_name}",
+    }
+
+    def run_assistant(prompt, assistant_id):
+        thread = client.beta.threads.create(
+            messages=[{"role": "user", "content": [{"type": "text", "text": prompt}]}]
+        )
+        run = client.beta.threads.runs.create(
+            thread_id=thread.id, assistant_id=assistant_id, stream=True
+        )
+
+        result_text = ""
+        for event in run:
+            if isinstance(event, ThreadMessageCompleted):
+                result_text = event.data.content[0].text.value
+            if isinstance(event, ThreadRunFailed):
+                break
+        return result_text
+    ```
+  </Tab>
+
+  <Tab title="Step 4: Results">
+    The system generates three types of output:
+
+    ```python
+    results = {}
+    for key in assistants_.keys():
+        results[key] = run_assistant(
+            prompt=prompts_[key],
+            assistant_id=assistants_[key]
+        )
+
+    # Display results
+    st.subheader("Summary")
+    st.markdown(results.get('summary', ''))
+    
+    st.subheader("Report")
+    st.markdown(results.get('report', ''))
+    
+    st.subheader("Resources")
+    st.markdown(results.get('resource', ''))
+    ```
+  </Tab>
+</Tabs>
+
+## OpenAI Assistant Integration
+
+The system uses three specialized OpenAI assistants, each configured with access to the vector storage containing crawled business information:
+
+<Accordion title="Assistant Configuration">
+  ```python
+  # OpenAI configuration
+  client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+  vector_storage_id = st.secrets["VECTOR_STORAGE_ID"]
+  report_assistant_id = st.secrets["ASSISTANT_ID"]
+  summary_assistant_id = st.secrets["SUMMARY_ASSISTANT"]
+  resource_assistant_id = st.secrets["RESOURCE_ASSISTANT"]
+  ```
+
+  Each assistant is pre-configured with:
+  - Access to the shared vector storage
+  - Specialized instructions for their analysis type
+  - Streaming response capabilities
+</Accordion>
+
+## Web Crawling Architecture
+
+The `CrawlUtil` class handles intelligent website crawling with caching:
+
+```python
+class CrawlUtil:
+    r = Redis(host='localhost', port=6379, db=0)
+
+    def __init__(self, client, vector_storage_id, progress_text):
+        self.client: OpenAI = client
+        self.vector_storage_id = vector_storage_id
+        self.progress_text = progress_text
+
+    def crawl_website(self, base_url, my_bar):
+        visited = set()
+        to_visit = [base_url]
+        all_pages_content = []
+        
+        while to_visit:
+            current_url = to_visit.pop(0)
+            if current_url not in visited:
+                html_content = self.fetch_html(current_url)
+                if html_content:
+                    all_pages_content.append((current_url, html_content))
+                    links = self.parse_html_for_links(base_url, html_content)
+                    to_visit.extend(links - visited)
+                visited.add(current_url)
+        
+        return all_pages_content
+```
+
+<Info>
+  The crawler uses a breadth-first search algorithm to systematically explore all pages within the target domain while respecting domain boundaries.
+</Info>
+
+## Vector Storage Integration
+
+Crawled content is uploaded to OpenAI's vector storage for semantic search:
+
+```python
+def website_crawler(self, url, my_bar):
+    base_url = url
+    data = self.get_website_data(base_url, my_bar)
+
+    # Check cache first
+    if file_id := self.r.get(url):
+        self.r.zadd("vs_files", {file_id: int(time.time())})
+        return
+
+    # Upload to vector database
+    file_name = urlparse(base_url).netloc + ".txt"
+    os.makedirs('data', exist_ok=True)
+    with open('data/' + file_name, "w") as text_file:
+        text_file.write(data)
+
+    file_ = self.client.files.create(
+        file=open('data/' + file_name, "rb"), purpose="assistants"
+    )
+    
+    # Store in vector database
+    vector_store_file = self.client.beta.vector_stores.files.create(
+        vector_store_id=self.vector_storage_id, file_id=file_.id
+    )
+```
+
+<Tip>
+  The system uses Redis caching to avoid re-crawling websites that have been recently analyzed, significantly improving performance for repeated queries.
+</Tip>
+
+## Error Handling
+
+The risk assessment includes robust error handling:
+
+<Accordion title="Common Error Scenarios">
+  ```python
+  if submitted:
+      verified, domain, twitter, balance, initial_balance = get_xrp_info(wallet_address)
+      
+      # No account information found
+      if not domain:
+          st.error("No info")
+          return
+
+      # Insufficient data for analysis
+      if not twitter or not balance or not initial_balance:
+          st.error("There is no sufficient information available for this address.")
+          return
+
+      st.success('Account information retrieved successfully!')
+  ```
+
+  **Validation Checks:**
+  - Account must have associated domain information
+  - Social media verification required
+  - Transaction history must be available
+</Accordion>
+
+## Performance Optimization
+
+<Note>
+  The system includes progress tracking to provide real-time feedback during the crawling and analysis process:
+
+  ```python
+  my_bar = st.progress(0, text=progress_text)
+  with st.spinner('Crawling business information...'):
+      web_crawler.website_crawler(f"https://{domain}", my_bar=my_bar)
+  ```
+</Note>
+
+## Key Features
+
+- **Real-time Analysis**: Processes wallet addresses and generates reports in seconds
+- **Intelligent Caching**: Redis-based caching prevents redundant web crawling
+- **Streaming Responses**: OpenAI assistants stream results for better UX
+- **Comprehensive Coverage**: Analyzes entire website structure, not just landing pages
+- **Semantic Search**: Vector storage enables intelligent information retrieval
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Regulatory Compliance" icon="shield-check" href="/features/regulatory-compliance">
+    Learn about compliance checking and report generation
+  </Card>
+  <Card title="AI Assistants" icon="robot" href="/features/ai-assistants">
+    Deep dive into the three specialized AI assistants
+  </Card>
+</CardGroup>

@@ -1,0 +1,179 @@
+---
+title: Wallet verification
+description: Learn how to verify XRP wallet addresses, domains, and social accounts using XRPScan API
+---
+
+The XRP Transaction Risk AI platform verifies wallet addresses by retrieving account information from the XRPScan API. This guide explains how wallet verification works and what data is collected.
+
+## Overview
+
+Wallet verification is the first step in the risk assessment process. The system queries the XRPScan API to retrieve:
+
+- Account verification status
+- Associated domain name
+- Twitter handle
+- Current XRP balance
+- Initial balance at account creation
+
+## Verification process
+
+<Steps>
+  <Step title="Enter wallet address">
+    Users input an XRP wallet address in the Streamlit interface. The address should be in the classic format (starting with 'r').
+    
+    Example: `rMdG3ju8pgyVh29ELPWaDuA74CpWW6Fxns`
+  </Step>
+
+  <Step title="Query XRPScan API">
+    The system calls the `get_xrp_info()` function which queries the XRPScan API:
+    
+    ```python
+    url = f"https://api.xrpscan.com/api/v1/account/{address}"
+    response = requests.get(url)
+    ```
+  </Step>
+
+  <Step title="Parse account data">
+    The API response is parsed to extract key verification fields:
+    
+    ```python
+    domain = account_info['accountName'].get('domain', None)
+    verified = account_info.get('accountName', {}).get('verified', False)
+    twitter = account_info['accountName'].get('twitter', None)
+    balance = account_info.get('xrpBalance', None)
+    initial_balance = account_info.get('initial_balance', None)
+    ```
+  </Step>
+
+  <Step title="Validate data completeness">
+    The system checks that all required fields are present:
+    
+    ```python
+    if not domain:
+        st.error("No info")
+        return
+        
+    if not twitter or not balance or not initial_balance:
+        st.error("There is no sufficient information available for this address.")
+        return
+    ```
+  </Step>
+</Steps>
+
+## Verification fields
+
+<AccordionGroup>
+  <Accordion title="Domain verification">
+    The `domain` field indicates the website associated with the wallet address. This is crucial for web crawling and business intelligence gathering.
+    
+    - **Format**: Domain name without protocol (e.g., `example.com`)
+    - **Usage**: Used to construct the URL for web crawling: `https://{domain}`
+    - **Required**: Yes - risk assessment cannot proceed without a domain
+  </Accordion>
+
+  <Accordion title="Verified status">
+    The `verified` boolean indicates whether XRPScan has verified the account's identity.
+    
+    - **True**: Account has been verified by XRPScan
+    - **False**: Unverified account
+    - **Impact**: Displayed in the final risk report
+  </Accordion>
+
+  <Accordion title="Twitter handle">
+    The associated Twitter/X account for the wallet owner.
+    
+    - **Format**: Twitter username (e.g., `@company`)
+    - **Required**: Yes - used as an indicator of legitimacy
+    - **Usage**: Displayed in account information summary
+  </Accordion>
+
+  <Accordion title="Balance information">
+    Two balance fields are retrieved:
+    
+    - **xrpBalance**: Current XRP balance in the wallet
+    - **initial_balance**: Balance when the account was first activated
+    - **Usage**: Both values are displayed in the risk assessment report
+  </Accordion>
+</AccordionGroup>
+
+## Error handling
+
+The verification process handles several error conditions:
+
+<Tabs>
+  <Tab title="Missing accountName">
+    If the API response doesn't include `accountName`, the wallet is not registered or has no associated identity:
+    
+    ```python
+    if 'accountName' not in account_info or account_info['accountName'] is None:
+        return None, None, None, None, None
+    ```
+    
+    **Result**: "No info" error displayed to user
+  </Tab>
+
+  <Tab title="Incomplete data">
+    If any required field (twitter, balance, initial_balance) is missing:
+    
+    ```python
+    if not twitter or not balance or not initial_balance:
+        st.error("There is no sufficient information available for this address.")
+    ```
+    
+    **Result**: Risk assessment cannot proceed
+  </Tab>
+
+  <Tab title="API failure">
+    If the XRPScan API returns an error status code:
+    
+    ```python
+    if response.status_code != 200:
+        st.error(f"Error fetching data: {response.status_code}")
+        return None, None, None, None, None
+    ```
+    
+    **Result**: All fields return `None`
+  </Tab>
+</Tabs>
+
+## Integration with risk assessment
+
+Once verification succeeds, the retrieved data flows into the risk assessment pipeline:
+
+1. **Domain** → Web crawler extracts business information
+2. **Company name** → Extracted from domain, used in AI prompts
+3. **Verification status** → Included in final risk report
+4. **Balance data** → Displayed alongside compliance analysis
+5. **Twitter** → Social proof indicator in the report
+
+<Info>
+  The verification step is mandatory. If verification fails, the risk assessment process stops immediately and the user is prompted to try a different wallet address.
+</Info>
+
+## API response example
+
+```json
+{
+  "accountName": {
+    "domain": "example.com",
+    "verified": true,
+    "twitter": "@example"
+  },
+  "xrpBalance": "10000.50",
+  "initial_balance": "20"
+}
+```
+
+## Best practices
+
+<Tip>
+  For the most accurate risk assessments, use wallet addresses that have:
+  - Verified status on XRPScan
+  - Associated domain with active website
+  - Twitter account for additional verification
+  - Transaction history (non-zero balances)
+</Tip>
+
+<Warning>
+  The system only works with XRP Ledger addresses that have been registered with identity information on XRPScan. Generic or anonymous wallets will fail verification.
+</Warning>
