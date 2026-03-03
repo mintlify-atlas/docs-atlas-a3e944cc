@@ -18,7 +18,7 @@ Sends XRP from a configured test wallet to a specified destination address using
 </ParamField>
 
 <ParamField path="amount_xrp" type="string" required>
-  The amount of XRP to send. The value is specified in drops (1 XRP = 1,000,000 drops).
+  The amount to send. Note: The source code passes this value directly to the Payment transaction, which expects the amount in drops (1 XRP = 1,000,000 drops). However, the UI number input does not specify units, creating ambiguity about whether users should enter XRP or drops.
 </ParamField>
 
 ## Return Value
@@ -148,6 +148,12 @@ While this function doesn't include explicit error handling in the source code, 
 - **Insufficient balance**: The sender must have enough XRP to cover the amount plus transaction fees
 - **Network errors**: Handle connection issues to the testnet endpoint
 - **Wallet authentication**: Ensure the test wallet secret is valid
+
+## Known Issues
+
+<Warning>
+  **Amount unit ambiguity**: The `amount_xrp` parameter is passed directly to the XRP Ledger Payment transaction, which requires amounts in drops (1 XRP = 1,000,000 drops). The UI does not clarify whether users should enter amounts in XRP or drops, which could lead to unexpected transaction amounts. Users should enter amounts in drops to match the Payment API expectations.
+</Warning>
 
 ## Security Considerations
 
