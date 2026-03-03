@@ -1,0 +1,77 @@
+{
+  "projectType": "saas",
+  "projectName": "XRP Transaction Risk AI",
+  "projectDescription": "AI-powered regulatory compliance and risk assessment tool for XRP Ledger transactions using OpenAI assistants and web crawling",
+  "theme": "aspen",
+  "primaryColor": "#36454f",
+  "lightColor": "#5a6a75",
+  "darkColor": "#1e252a",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart", "installation"]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/risk-assessment",
+              "features/regulatory-compliance",
+              "features/xrp-transactions",
+              "features/ai-assistants"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/wallet-verification",
+              "guides/compliance-checks",
+              "guides/web-crawling",
+              "guides/configuration"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Functions",
+            "pages": [
+              "api/send-xrp",
+              "api/get-account-info",
+              "api/run-assistant"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/crawl-util",
+              "api/website-crawler",
+              "api/extract-company"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "AI-powered regulatory compliance analysis for XRP transactions",
+    "Real-time wallet verification and domain checking",
+    "Automated web crawling for business intelligence",
+    "Multi-assistant OpenAI integration for reports and summaries",
+    "XRP Ledger testnet integration with payment functionality",
+    "Risk assessment based on financial regulations"
+  ],
+  "publicApiSurface": [
+    "send_xrp_test(destination_address, amount_xrp)",
+    "get_xrp_info(address)",
+    "CrawlUtil.website_crawler(url, my_bar)",
+    "CrawlUtil.extract_company_from_url(url)",
+    "CrawlUtil.get_website_data(base_url, my_bar)",
+    "run_assistant(prompt, assistant_id)"
+  ]
+}
