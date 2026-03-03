@@ -1,0 +1,254 @@
+---
+title: Quickstart
+description: Perform your first XRP transaction risk assessment in under 5 minutes
+---
+
+Get up and running with XRP Transaction Risk AI quickly. This guide walks you through performing your first compliance risk assessment on an XRP wallet address.
+
+## Prerequisites
+
+Before starting, ensure you have:
+
+- Completed the [installation](/installation) steps
+- Configured all required secrets in `.streamlit/secrets.toml`
+- Redis running locally
+- OpenAI API key with access to assistants
+
+<Info>
+  If you haven't set up the application yet, follow the [installation guide](/installation) first.
+</Info>
+
+## Launch the application
+
+Start the Streamlit application from your project directory:
+
+```bash
+streamlit run ripple_challange.py
+```
+
+The application will open in your default browser at `http://localhost:8501`.
+
+<Tip>
+  On first launch, Streamlit may ask you to enter your email. This is optional and can be skipped.
+</Tip>
+
+## Perform your first risk assessment
+
+<Steps>
+  <Step title="Enter wallet address">
+    In the main form, input the XRP wallet address you want to assess:
+    
+    ```
+    Example: rMdG3ju8pgyVh29ELPWaDuA74CpWW6Fxns
+    ```
+    
+    <Note>
+      The wallet must have associated identity information on XRPScan (domain, Twitter, etc.). Anonymous wallets will return "No info" errors.
+    </Note>
+  </Step>
+
+  <Step title="Enter XRP amount">
+    Specify the amount of XRP you intend to send. This is for reference only during the assessment phase.
+    
+    The amount can be entered as:
+    - Whole numbers (e.g., `100`)
+    - Decimal values (e.g., `50.5`)
+  </Step>
+
+  <Step title="Click 'Check Destination'">
+    Submit the form by clicking the **Check Destination ✨✨** button.
+    
+    The system will:
+    1. Fetch account information from XRPScan API
+    2. Verify the wallet has sufficient metadata
+    3. Extract the associated domain
+  </Step>
+
+  <Step title="Wait for web crawling">
+    Watch the progress bar as the system crawls the business website:
+    
+    ```python
+    # The crawler visits all links from the homepage
+    web_crawler.website_crawler(f"https://{domain}", my_bar=my_bar)
+    ```
+    
+    This typically takes 15-30 seconds depending on website size.
+  </Step>
+
+  <Step title="Review AI-generated reports">
+    Once crawling completes, three AI assistants analyze the data in parallel:
+    
+    **Summary**
+    - Brief overview of relevant financial regulations
+    - Jurisdiction-specific compliance requirements
+    - Applicable regulatory frameworks
+    
+    **Report**
+    - Identified red flags and compliance concerns
+    - Regulatory violations or gaps
+    - Licensing and registration issues
+    
+    **Resources**
+    - Relevant regulatory documents
+    - Laws and standards applicable to the company
+    - Compliance references
+    
+    Each section is displayed in a styled container with the analysis results.
+  </Step>
+</Steps>
+
+## Understanding the results
+
+The risk assessment provides comprehensive information to help you make informed decisions:
+
+### Account information
+
+At the bottom of the report, you'll see verified wallet metadata:
+
+```
+Verified: Yes/No
+Domain: example.com
+Twitter: @example
+Balance: 10000.50 XRP
+Initial Balance: 20 XRP
+```
+
+- **Verified**: Indicates XRPScan has validated the account identity
+- **Domain**: The business website associated with this wallet
+- **Twitter**: Social media verification
+- **Balance**: Current XRP holdings (indicates account activity)
+
+### Risk indicators
+
+Look for these key signals in the compliance report:
+
+<AccordionGroup>
+  <Accordion title="Critical red flags">
+    - Missing required licenses
+    - Operating in sanctioned jurisdictions
+    - Regulatory violations
+    - No domain or unverified account
+    
+    **Action**: Do not proceed with transaction
+  </Accordion>
+
+  <Accordion title="Medium concerns">
+    - Incomplete public information
+    - Recently issued licenses
+    - Multi-jurisdiction complexity
+    
+    **Action**: Proceed with caution, request additional documentation
+  </Accordion>
+
+  <Accordion title="Low risk">
+    - All licenses current
+    - Verified account with complete metadata
+    - Operating in compliant jurisdiction
+    
+    **Action**: Safe to proceed
+  </Accordion>
+</AccordionGroup>
+
+## Sending the transaction (optional)
+
+After reviewing the risk assessment, you can send the XRP transaction:
+
+1. Click the **Send the amount** button at the bottom
+2. The system will execute the transaction on XRP Testnet
+3. Transaction details are logged to the console
+
+```python
+# Transaction is sent using the configured testnet wallet
+send_xrp_test(destination_address, amount_xrp)
+```
+
+<Warning>
+  Transactions are executed on XRP Testnet only. The configured wallet credentials must be testnet credentials from the [faucet](https://faucet.altnet.rippletest.net/).
+</Warning>
+
+## Example workflow
+
+Here's a complete example of the assessment process:
+
+```python
+# User inputs
+wallet_address = "rMdG3ju8pgyVh29ELPWaDuA74CpWW6Fxns"
+amount_xrp = 100
+
+# Step 1: Fetch account info
+verified, domain, twitter, balance, initial_balance = get_xrp_info(wallet_address)
+# Returns: True, "example.com", "@example", "10000.50", "20"
+
+# Step 2: Crawl business website
+web_crawler.website_crawler("https://example.com", my_bar)
+# Crawls homepage and linked pages, uploads to vector storage
+
+# Step 3: Extract company name
+company_name = web_crawler.extract_company_from_url("https://example.com")
+# Returns: "example"
+
+# Step 4: Run AI assistants
+summary = run_assistant(
+    f"Provide a brief summary of financial regulations relevant to {company_name}",
+    summary_assistant_id
+)
+
+report = run_assistant(
+    f"Identify compliance red flags in {company_name}",
+    report_assistant_id
+)
+
+resources = run_assistant(
+    f"List regulatory documents for {company_name}",
+    resource_assistant_id
+)
+```
+
+## Troubleshooting
+
+<Accordion title="Error: 'No info'">
+  **Cause**: The wallet address has no associated account name on XRPScan.
+  
+  **Solution**: Use a verified wallet address with domain information. Most exchange and business wallets have this metadata.
+</Accordion>
+
+<Accordion title="Error: 'There is no sufficient information available'">
+  **Cause**: The wallet is missing Twitter, balance, or initial_balance data.
+  
+  **Solution**: Choose a different wallet address with complete metadata.
+</Accordion>
+
+<Accordion title="Redis connection error">
+  **Cause**: Redis is not running.
+  
+  **Solution**: Start Redis:
+  ```bash
+  redis-server
+  ```
+</Accordion>
+
+<Accordion title="OpenAI API errors">
+  **Cause**: Invalid API key or assistant IDs.
+  
+  **Solution**: 
+  1. Verify `OPENAI_API_KEY` in secrets.toml
+  2. Check assistant IDs are correct
+  3. Ensure vector storage exists
+</Accordion>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Explore features" icon="sparkles" href="/features/risk-assessment">
+    Learn about the AI-powered risk assessment system
+  </Card>
+  <Card title="Configuration guide" icon="gear" href="/guides/configuration">
+    Customize OpenAI assistants and settings
+  </Card>
+  <Card title="API reference" icon="code" href="/api/send-xrp">
+    Explore the core functions and utilities
+  </Card>
+  <Card title="Compliance checks" icon="shield-check" href="/guides/compliance-checks">
+    Understand how to interpret risk reports
+  </Card>
+</CardGroup>
